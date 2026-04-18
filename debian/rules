@@ -1,0 +1,20 @@
+#!/usr/bin/make -f
+
+export DH_VIRTUALENV_INSTALL_ROOT=/opt/venvs
+
+%:
+	dh $@ --with python-virtualenv
+
+override_dh_virtualenv:
+	dh_virtualenv \
+		--python=/usr/bin/python3 \
+		--install-suffix=bc-vigil \
+		--upgrade-pip \
+		--preinstall=wheel \
+		--preinstall=setuptools
+
+override_dh_strip:
+	dh_strip --exclude=.so
+
+override_dh_shlibdeps:
+	dh_shlibdeps --exclude-package=bc-vigil

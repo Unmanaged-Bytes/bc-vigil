@@ -1,0 +1,16 @@
+{% if result.error %}
+<p class="error">{{ result.error }}</p>
+{% else %}
+<div class="preview-ok">
+  <p><strong>{{ result.description }}</strong></p>
+  <p class="hint">{{ t(request, "schedules.preview.generated") }} <code>{{ result.cron }}</code></p>
+  {% if occurrences %}
+  <p class="hint">{{ t(request, "schedules.preview.next5") }}</p>
+  <ul class="occurrences">
+    {% for o in occurrences %}
+      <li>{{ o | localtime('%a %Y-%m-%d %H:%M:%S') }}</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</div>
+{% endif %}

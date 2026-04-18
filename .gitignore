@@ -1,0 +1,34 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# runtime
+/var/
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+/data/
+
+# debian packaging build artefacts (local dpkg-buildpackage runs)
+debian/.debhelper/
+debian/debhelper-build-stamp
+debian/files
+debian/bc-vigil/
+debian/*.substvars
+debian/tmp/
+*.deb
+*.buildinfo
+*.changes
+
+# internal docs (not published)
+/docs/

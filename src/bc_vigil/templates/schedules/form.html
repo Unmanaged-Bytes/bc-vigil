@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block title %}{{ t(request, "schedules.new") }} — {{ t(request, "app.title") }}{% endblock %}
+{% block content %}
+<h1>{{ t(request, "schedules.new") }} — {{ target.name }}</h1>
+
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
+
+<form method="post" action="/schedules" class="form schedule-form"
+      hx-post="/schedules/preview"
+      hx-trigger="change delay:200ms, keyup changed delay:400ms"
+      hx-target="#schedule-preview"
+      hx-swap="innerHTML">
+  <input type="hidden" name="target_id" value="{{ target.id }}">
+
+  <label>{{ t(request, "schedules.form.frequency") }}
+    <select name="mode" data-mode-select>
+      <option value="every_minutes" {% if state.mode == 'every_minutes' %}selected{% endif %}>{{ t(request, "schedules.form.mode.every_minutes") }}</option>
+      <option value="hourly" {% if state.mode == 'hourly' %}selected{% endif %}>{{ t(request, "schedules.form.mode.hourly") }}</option>
+      <option value="daily" {% if state.mode == 'daily' %}selected{% endif %}>{{ t(request, "schedules.form.mode.daily") }}</option>
+      <option value="weekly" {% if state.mode == 'weekly' %}selected{% endif %}>{{ t(request, "schedules.form.mode.weekly") }}</option>
+      <option value="monthly" {% if state.mode == 'monthly' %}selected{% endif %}>{{ t(request, "schedules.form.mode.monthly") }}</option>
+      <option value="cron" {% if state.mode == 'cron' %}selected{% endif %}>{{ t(request, "schedules.form.mode.cron") }}</option>
+    </select>
+  </label>
+
+  <div data-mode-panel="every_minutes" hidden>
+    <label>{{ t(request, "schedules.form.interval_min") }}
+      <input type="number" name="interval_minutes" min="1" max="59" value="{{ state.interval_minutes }}">
+    </label>
+  </div>
+
+  <div data-mode-panel="hourly" hidden>
+    <label>{{ t(request, "schedules.form.minute_of_hour") }}
+      <input type="number" name="minute_of_hour" min="0" max="59" value="{{ state.minute_of_hour }}">
+    </label>
+  </div>
+
+  <div data-mode-panel="daily" hidden>
+    <label>{{ t(request, "schedules.form.time") }}
+      <input type="time" name="time" value="{{ state.time }}">
+    </label>
+  </div>
+
+  <div data-mode-panel="weekly" hidden>
+    <label>{{ t(request, "schedules.form.time") }}
+      <input type="time" name="time_weekly" value="{{ state.time }}"
+             onchange="document.querySelector('input[name=time]').value = this.value">
+    </label>
+    <fieldset class="days">
+      <legend>{{ t(request, "schedules.form.days") }}</legend>
+      {% set day_keys = ['mon','tue','wed','thu','fri','sat','sun'] %}
+      {% set day_labels_fr = {'mon':'Lun','tue':'Mar','wed':'Mer','thu':'Jeu','fri':'Ven','sat':'Sam','sun':'Dim'} %}
+      {% set day_labels_en = {'mon':'Mon','tue':'Tue','wed':'Wed','thu':'Thu','fri':'Fri','sat':'Sat','sun':'Sun'} %}
+      {% set _labels = day_labels_en if current_lang(request) == 'en' else day_labels_fr %}
+      {% for key in day_keys %}
+        <label class="inline">
+          <input type="checkbox" name="days" value="{{ key }}"
+                 {% if key in state.days %}checked{% endif %}>
+          {{ _labels[key] }}
+        </label>
+      {% endfor %}
+    </fieldset>
+  </div>
+
+  <div data-mode-panel="monthly" hidden>
+    <label>{{ t(request, "schedules.form.time") }}
+      <input type="time" name="time_monthly" value="{{ state.time }}"
+             onchange="document.querySelector('input[name=time]').value = this.value">
+    </label>
+    <label>{{ t(request, "schedules.form.day_of_month") }}
+      <input type="number" name="day_of_month" min="1" max="31" value="{{ state.day_of_month }}">
+    </label>
+  </div>
+
+  <div data-mode-panel="cron" hidden>
+    <p class="hint">{{ t(request, "schedules.form.cron_hint") | safe }}</p>
+    <label>{{ t(request, "schedules.form.expression") }}
+      <input name="cron_expr" value="{{ state.cron_expr }}" placeholder="0 3 * * *">
+    </label>
+  </div>
+
+  <input type="hidden" name="time" value="{{ state.time }}">
+
+  <label class="inline">
+    <input type="checkbox" name="enabled" value="true" checked>
+    {{ t(request, "schedules.form.enable") }}
+  </label>
+
+  <div id="schedule-preview" class="preview-panel">
+    <p class="hint">{{ t(request, "schedules.form.preview_hint") }}</p>
+  </div>
+
+  <div>
+    <button class="btn primary" type="submit">{{ t(request, "btn.create") }}</button>
+    <a href="/targets/{{ target.id }}" class="btn">{{ t(request, "btn.back") }}</a>
+  </div>
+</form>
+
+<script>
+(function () {
+  const form = document.querySelector('.schedule-form');
+  const select = form.querySelector('[data-mode-select]');
+  const panels = form.querySelectorAll('[data-mode-panel]');
+
+  function syncPanels() {
+    const mode = select.value;
+    panels.forEach(p => {
+      const show = p.dataset.modePanel === mode;
+      p.hidden = !show;
+      p.querySelectorAll('input, select').forEach(i => {
+        i.disabled = !show;
+      });
+    });
+  }
+
+  select.addEventListener('change', syncPanels);
+  syncPanels();
+
+  form.dispatchEvent(new Event('change', { bubbles: true }));
+})();
+</script>
+{% endblock %}

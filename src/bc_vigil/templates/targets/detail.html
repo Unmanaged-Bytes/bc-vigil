@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block title %}{{ target.name }} — {{ t(request, "app.title") }}{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>
+    {{ target.name }}
+    {% if drift_count %}<span class="nav-badge" title="{{ t(request, 'targets.detail.drift_count') }}">{{ drift_count }}</span>{% endif %}
+  </h1>
+  <div class="actions">
+    <form method="post" action="/scans/run?target_id={{ target.id }}" style="display:inline">
+      <button class="btn primary">{{ t(request, "btn.scan_now_full") }}</button>
+    </form>
+    <form method="post" action="/targets/{{ target.id }}/duplicate" style="display:inline">
+      <button class="btn">{{ t(request, "btn.duplicate") }}</button>
+    </form>
+    {% if drift_count %}
+    <form method="post" action="/scans/acknowledge-all?target_id={{ target.id }}" style="display:inline"
+          onsubmit="return confirm('{{ t(request, "targets.confirm.ack_all") }}')">
+      <button class="btn">{{ t(request, "btn.ack_all") }} ({{ drift_count }})</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+<dl class="meta">
+  <dt>{{ t(request, "targets.detail.path") }}</dt><dd><code>{{ target.path }}</code></dd>
+  <dt>{{ t(request, "targets.detail.algo") }}</dt><dd>{{ target.algorithm }}</dd>
+  <dt>{{ t(request, "targets.detail.threads") }}</dt><dd>{{ target.threads }}</dd>
+  <dt>{{ t(request, "targets.detail.excludes") }}</dt>
+  <dd>
+    {% if target.excludes %}
+      {% for p in target.excludes.splitlines() %}<code>{{ p }}</code>{% if not loop.last %} {% endif %}{% endfor %}
+    {% else %}<em>{{ t(request, "targets.detail.excludes_none") }}</em>{% endif %}
+  </dd>
+  <dt>{{ t(request, "targets.detail.includes") }}</dt>
+  <dd>
+    {% if target.includes %}
+      {% for p in target.includes.splitlines() %}<code>{{ p }}</code>{% if not loop.last %} {% endif %}{% endfor %}
+    {% else %}<em>{{ t(request, "targets.detail.includes_all") }}</em>{% endif %}
+  </dd>
+  <dt>{{ t(request, "targets.detail.baseline") }}</dt>
+  <dd>
+    {% if target.baseline_scan %}
+      <a href="/scans/{{ target.baseline_scan.id }}">{{ t(request, "scans.detail.title") }} #{{ target.baseline_scan.id }}</a>
+      ({{ target.baseline_scan.started_at | localtime('%Y-%m-%d %H:%M') }})
+    {% else %}
+      <em>{{ t(request, "targets.detail.baseline_none") }}</em>
+    {% endif %}
+  </dd>
+  <dt>{{ t(request, "targets.detail.drift_count") }}</dt>
+  <dd>
+    {% if drift_count %}
+      <strong class="error">{{ drift_count }}</strong>
+    {% else %}
+      <span class="ok">0</span>
+    {% endif %}
+  </dd>
+</dl>
+
+<h2>{{ t(request, "schedules.title") }}</h2>
+<p><a href="/schedules/new?target_id={{ target.id }}" class="btn">{{ t(request, "btn.add_schedule") }}</a></p>
+{% if schedule_stats %}
+<table>
+  <thead><tr>
+    <th>{{ t(request, "schedules.col.cron") }}</th>
+    <th>{{ t(request, "schedules.col.state") }}</th>
+    <th>{{ t(request, "schedules.col.last_run") }}</th>
+    <th></th>
+  </tr></thead>
+  <tbody>
+  {% for s in schedule_stats %}
+    <tr>
+      <td><code>{{ s.schedule.cron }}</code></td>
+      <td>
+        {% if s.schedule.enabled %}
+          {{ t(request, "schedules.state.active") }}
+          {% if s.stuck %}<span class="event event-removed">{{ t(request, "schedules.state.stuck") }}</span>{% endif %}
+        {% else %}
+          {{ t(request, "schedules.state.disabled") }}
+        {% endif %}
+      </td>
+      <td>{{ s.last_run_at | localtime('%Y-%m-%d %H:%M') if s.last_run_at else '—' }}</td>
+      <td>
+        <form method="post" action="/schedules/{{ s.schedule.id }}/toggle" style="display:inline">
+          <button class="btn">{% if s.schedule.enabled %}{{ t(request, "btn.disable") }}{% else %}{{ t(request, "btn.enable") }}{% endif %}</button>
+        </form>
+        <form method="post" action="/schedules/{{ s.schedule.id }}/delete" style="display:inline"
+              onsubmit="return confirm('{{ t(request, "schedules.confirm.delete") }}')">
+          <button class="btn danger">{{ t(request, "btn.delete") }}</button>
+        </form>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="empty">{{ t(request, "schedules.empty") }}</p>
+{% endif %}
+
+<h2>{{ t(request, "targets.detail.recent_scans") }}</h2>
+{% if scans %}
+<table>
+  <thead>
+    <tr>
+      <th>{{ t(request, "col.id") }}</th>
+      <th>{{ t(request, "col.trigger") }}</th>
+      <th>{{ t(request, "col.status") }}</th>
+      <th>{{ t(request, "col.started") }}</th>
+      <th>{{ t(request, "col.duration") }}</th>
+      <th>{{ t(request, "col.files") }}</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for scan in scans %}
+    <tr>
+      <td><a href="/scans/{{ scan.id }}">#{{ scan.id }}</a></td>
+      <td>{{ scan.trigger }}</td>
+      <td><span class="status status-{{ scan.status }}">{{ scan.status }}</span></td>
+      <td>{{ scan.started_at | localtime }}</td>
+      <td>{% if scan.duration_ms is not none %}{{ scan.duration_ms }} ms{% else %}—{% endif %}</td>
+      <td>{{ scan.files_total if scan.files_total is not none else '—' }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="empty">{{ t(request, "scans.empty") }}</p>
+{% endif %}
+
+<form method="post" action="/targets/{{ target.id }}/delete" class="danger-zone"
+      onsubmit="return confirm('{{ t(request, "targets.confirm.delete") }}')">
+  <button class="btn danger">{{ t(request, "btn.delete_target") }}</button>
+</form>
+{% endblock %}

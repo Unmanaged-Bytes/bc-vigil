@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}{{ t(request, "targets.title") }} — {{ t(request, "app.title") }}{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>{{ t(request, "targets.title") }}</h1>
+  <a href="/targets/new" class="btn primary">{{ t(request, "btn.new_target") }}</a>
+</div>
+
+{% if targets %}
+<table>
+  <thead>
+    <tr>
+      <th>{{ t(request, "col.name") }}</th>
+      <th>{{ t(request, "col.path") }}</th>
+      <th>{{ t(request, "col.algo") }}</th>
+      <th>{{ t(request, "col.threads") }}</th>
+      <th>{{ t(request, "col.schedules") }}</th>
+      <th>{{ t(request, "col.last_scan") }}</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for target in targets %}
+    <tr>
+      <td><a href="/targets/{{ target.id }}">{{ target.name }}</a></td>
+      <td><code>{{ target.path }}</code></td>
+      <td>{{ target.algorithm }}</td>
+      <td>{{ target.threads }}</td>
+      <td>{{ target.schedules | length }}</td>
+      <td>
+        {% set last = target.scans[0] if target.scans else None %}
+        {% if last %}
+          <a href="/scans/{{ last.id }}">
+            <span class="status status-{{ last.status }}">{{ last.status }}</span>
+          </a>
+          <small>{{ last.started_at | localtime('%Y-%m-%d %H:%M') }}</small>
+        {% else %}
+          <small>—</small>
+        {% endif %}
+      </td>
+      <td>
+        <form method="post" action="/scans/run?target_id={{ target.id }}" style="display:inline">
+          <button class="btn">{{ t(request, "btn.scan_now") }}</button>
+        </form>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="empty">{{ t(request, "targets.empty") | safe }}</p>
+{% endif %}
+{% endblock %}

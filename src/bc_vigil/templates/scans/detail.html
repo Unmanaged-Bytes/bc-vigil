@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}{{ t(request, "scans.detail.title") }} #{{ scan.id }} — {{ t(request, "app.title") }}{% endblock %}
+{% block content %}
+<div class="page-header"
+  {% if scan.status in ['pending', 'running'] %}
+    hx-get="/scans/{{ scan.id }}" hx-trigger="every 2s" hx-target="body" hx-swap="outerHTML"
+  {% endif %}>
+  <h1>{{ t(request, "scans.detail.title") }} #{{ scan.id }} — <span class="status status-{{ scan.status }}">{{ scan.status }}</span></h1>
+  <div class="actions">
+    {% if scan.status in ['pending', 'running'] %}
+      <form method="post" action="/scans/{{ scan.id }}/cancel" style="display:inline"
+            onsubmit="return confirm('{{ t(request, "scans.confirm.cancel") }}')">
+        <button class="btn">{{ t(request, "btn.cancel") }}</button>
+      </form>
+      <form method="post" action="/scans/{{ scan.id }}/cancel?force=true" style="display:inline"
+            onsubmit="return confirm('{{ t(request, "scans.confirm.force") }}')">
+        <button class="btn danger">{{ t(request, "btn.force_stop") }}</button>
+      </form>
+    {% endif %}
+    {% if scan.status == 'drift' and not scan.acknowledged %}
+      <form method="post" action="/scans/{{ scan.id }}/acknowledge" style="display:inline">
+        <button class="btn">{{ t(request, "btn.acknowledge") }}</button>
+      </form>
+    {% endif %}
+    {% if scan.status == 'drift' and events %}
+      <a href="/scans/{{ scan.id }}/events.csv" class="btn">{{ t(request, "btn.export_csv") }}</a>
+    {% endif %}
+    {% if scan.status in ['ok', 'drift'] %}
+      <form method="post" action="/scans/{{ scan.id }}/promote" style="display:inline"
+            onsubmit="return confirm('{{ t(request, "scans.confirm.promote") }}')">
+        <button class="btn">{{ t(request, "btn.promote") }}</button>
+      </form>
+    {% endif %}
+  </div>
+</div>
+
+<dl class="meta">
+  <dt>{{ t(request, "col.target") }}</dt><dd><a href="/targets/{{ scan.target.id }}">{{ scan.target.name }}</a> — <code>{{ scan.target.path }}</code></dd>
+  <dt>{{ t(request, "scans.detail.trigger") }}</dt><dd>{{ scan.trigger }}</dd>
+  <dt>{{ t(request, "scans.detail.started") }}</dt><dd>{{ scan.started_at | localtime }}</dd>
+  <dt>{{ t(request, "scans.detail.finished") }}</dt><dd>{{ scan.finished_at | localtime }}</dd>
+  <dt>{{ t(request, "scans.detail.duration") }}</dt><dd>{% if scan.duration_ms is not none %}{{ scan.duration_ms }} ms{% else %}—{% endif %}</dd>
+  <dt>{{ t(request, "scans.detail.files") }}</dt><dd>{{ scan.files_total if scan.files_total is not none else '—' }}</dd>
+  <dt>{{ t(request, "scans.detail.bytes") }}</dt><dd>{{ scan.bytes_total | humanbytes }}</dd>
+  <dt>{{ t(request, "scans.detail.rss") }}</dt><dd>{{ scan.peak_rss_bytes | humanbytes }}</dd>
+  <dt>{{ t(request, "scans.detail.digest") }}</dt><dd><code>{{ scan.digest_path or '—' }}</code></dd>
+  {% if scan.error %}<dt>{{ t(request, "scans.detail.error") }}</dt><dd class="error">{{ scan.error }}</dd>{% endif %}
+</dl>
+
+{% if scan.status == 'drift' %}
+<h2>{{ t(request, "scans.events") }} ({{ events | length }})</h2>
+<table>
+  <thead><tr>
+    <th>{{ t(request, "scans.events.col.type") }}</th>
+    <th>{{ t(request, "scans.events.col.path") }}</th>
+    <th>{{ t(request, "scans.events.col.old") }}</th>
+    <th>{{ t(request, "scans.events.col.new") }}</th>
+  </tr></thead>
+  <tbody>
+  {% for ev in events %}
+    <tr>
+      <td><span class="event event-{{ ev.event_type }}">{{ ev.event_type }}</span></td>
+      <td><code>{{ ev.path }}</code></td>
+      <td><code class="digest">{{ ev.old_digest or '—' }}</code></td>
+      <td><code class="digest">{{ ev.new_digest or '—' }}</code></td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% elif scan.status == 'ok' %}
+<p class="ok">{{ t(request, "scans.events.none") }}</p>
+{% endif %}
+{% endblock %}

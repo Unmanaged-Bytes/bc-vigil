@@ -1,0 +1,10 @@
+bc-vigil (0.1.0-1) stable; urgency=medium
+
+  * Initial release.
+  * Web frontend for bc-hash with targets, schedules, scan drift detection.
+  * Storage module (disk usage via psutil).
+  * FR/EN i18n.
+  * DB backup/restore/reset.
+  * 100% test coverage.
+
+ -- Younes Benmoussa <younes.benmoussa@pm.me>  Sat, 18 Apr 2026 17:30:00 +0000

@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}{{ t(request, "admin.title") }} — {{ t(request, "app.title") }}{% endblock %}
+{% block content %}
+<h1>{{ t(request, "admin.title") }}</h1>
+
+{% if message %}<p class="ok">{{ message }}</p>{% endif %}
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
+
+<section class="cards">
+  <div class="card">
+    <div class="metric">{{ targets_count }}</div>
+    <div class="label">{{ t(request, "admin.metric.targets") }}</div>
+  </div>
+  <div class="card">
+    <div class="metric">{{ scans_count }}</div>
+    <div class="label">{{ t(request, "admin.metric.scans") }}</div>
+  </div>
+  <div class="card {% if active_scans %}alert{% endif %}">
+    <div class="metric">{{ active_scans }}</div>
+    <div class="label">{{ t(request, "admin.metric.active") }}</div>
+  </div>
+</section>
+
+<h2>{{ t(request, "admin.backup.title") }}</h2>
+<p class="hint">{{ t(request, "admin.backup.hint") | safe }}</p>
+<p><a href="/admin/backup" class="btn primary">{{ t(request, "btn.download_backup") }}</a></p>
+
+<h2>{{ t(request, "admin.restore.title") }}</h2>
+<p class="hint">{{ t(request, "admin.restore.hint") | safe }}</p>
+{% if active_scans %}
+<p class="error">{{ t(request, "admin.restore.blocked") % active_scans }}</p>
+{% else %}
+<form method="post" action="/admin/restore" enctype="multipart/form-data" class="form"
+      onsubmit="return confirm('{{ t(request, "admin.confirm.restore") }}')">
+  <label>{{ t(request, "admin.restore.archive") | safe }}
+    <input type="file" name="archive" accept=".tar.gz,.tgz,application/gzip" required>
+  </label>
+  <label>{{ t(request, "admin.restore.confirm") | safe }}
+    <input type="text" name="confirm" required>
+  </label>
+  <div>
+    <button class="btn danger" type="submit">{{ t(request, "btn.restore") }}</button>
+  </div>
+</form>
+{% endif %}
+
+<h2>{{ t(request, "admin.reset.title") }}</h2>
+<p class="hint">{{ t(request, "admin.reset.hint") }}</p>
+{% if active_scans %}
+<p class="error">{{ t(request, "admin.reset.blocked") % active_scans }}</p>
+{% else %}
+<form method="post" action="/admin/reset" class="form"
+      onsubmit="return confirm('{{ t(request, "admin.confirm.reset") }}')">
+  <label>{{ t(request, "admin.reset.confirm") | safe }}
+    <input type="text" name="confirm" required>
+  </label>
+  <div>
+    <button class="btn danger" type="submit">{{ t(request, "btn.reset") }}</button>
+  </div>
+</form>
+{% endif %}
+
+<h2>{{ t(request, "admin.snapshots.title") }}</h2>
+{% if snapshots %}
+<p class="hint">{{ t(request, "admin.snapshots.hint") | safe }}</p>
+<table>
+  <thead><tr>
+    <th>{{ t(request, "admin.snapshots.col.file") }}</th>
+    <th>{{ t(request, "admin.snapshots.col.size") }}</th>
+    <th>{{ t(request, "admin.snapshots.col.date") }}</th>
+  </tr></thead>
+  <tbody>
+  {% for s in snapshots %}
+    <tr>
+      <td><code>{{ s.name }}</code></td>
+      <td>{{ s.stat().st_size | humanbytes }}</td>
+      <td>{{ s.stat().st_mtime | int | datetime_utc }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="empty">{{ t(request, "admin.snapshots.empty") }}</p>
+{% endif %}
+{% endblock %}

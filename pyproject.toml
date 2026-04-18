@@ -1,0 +1,76 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bc-vigil"
+version = "0.1.0"
+description = "Web frontend for bc-hash: schedule hashes, detect file integrity drift"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [
+    { name = "Younes Benmoussa", email = "younes.benmoussa@pm.me" },
+]
+requires-python = ">=3.11"
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Framework :: FastAPI",
+    "Operating System :: POSIX :: Linux",
+    "Topic :: System :: Monitoring",
+    "Topic :: Security",
+]
+dependencies = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.27",
+    "sqlalchemy>=2.0",
+    "apscheduler>=3.10",
+    "jinja2>=3.1",
+    "python-multipart>=0.0.9",
+    "croniter>=2.0",
+    "pydantic-settings>=2.2",
+    "psutil>=5.9",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "pytest-cov>=5",
+    "coverage>=7",
+    "httpx>=0.27",
+]
+
+[tool.pytest.ini_options]
+addopts = "--cov=bc_vigil --cov-report=term-missing --cov-fail-under=100"
+testpaths = ["tests"]
+markers = [
+    "requires_bchash: test needs the real bc-hash binary (skipped in CI where bc-hash is not installed)",
+]
+
+[tool.coverage.run]
+source = ["src/bc_vigil"]
+branch = false
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+]
+
+[project.urls]
+Homepage = "https://github.com/unmanaged-bytes/bc-vigil"
+Repository = "https://github.com/unmanaged-bytes/bc-vigil"
+Issues = "https://github.com/unmanaged-bytes/bc-vigil/issues"
+
+[project.scripts]
+bc-vigil = "bc_vigil.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+bc_vigil = ["templates/**/*.html", "static/**/*"]

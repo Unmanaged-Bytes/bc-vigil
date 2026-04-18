@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="{{ current_lang(request) }}">
+<head>
+<meta charset="utf-8">
+<title>{% block title %}{{ t(request, "app.title") }}{% endblock %}</title>
+<link rel="stylesheet" href="/static/app.css">
+<script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
+</head>
+<body>
+<header>
+  <nav>
+    <a href="/" class="brand">{{ t(request, "app.title") }}</a>
+    <a href="/targets">{{ t(request, "nav.targets") }}</a>
+    <a href="/scans">
+      {{ t(request, "nav.scans") }}
+      {% set _pd = nav_pending_drift() %}
+      {% if _pd %}<span class="nav-badge">{{ _pd }}</span>{% endif %}
+    </a>
+    <a href="/storage">{{ t(request, "nav.storage") }}</a>
+    <span class="nav-spacer"></span>
+    <a href="/admin">{{ t(request, "nav.admin") }}</a>
+    <a href="/help">{{ t(request, "nav.help") }}</a>
+    <span class="lang-switch">
+      {% set _cur = current_lang(request) %}
+      {% for code in supported_langs %}
+        {% if code == _cur %}
+          <span class="lang-current">{{ code | upper }}</span>
+        {% else %}
+          <a href="/lang/{{ code }}?next={{ request.url.path }}">{{ code | upper }}</a>
+        {% endif %}
+      {% endfor %}
+    </span>
+  </nav>
+</header>
+<main>
+  {% block content %}{% endblock %}
+</main>
+</body>
+</html>

@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}{{ t(request, "storage.title") }} — {{ t(request, "app.title") }}{% endblock %}
+{% block content %}
+<h1>{{ t(request, "storage.title") }}</h1>
+<p class="hint">{{ t(request, "storage.hint") }}</p>
+
+{% if disks %}
+<table>
+  <thead><tr>
+    <th>{{ t(request, "storage.col.mount") }}</th>
+    <th>{{ t(request, "storage.col.device") }}</th>
+    <th>{{ t(request, "storage.col.fstype") }}</th>
+    <th>{{ t(request, "storage.col.total") }}</th>
+    <th>{{ t(request, "storage.col.used") }}</th>
+    <th>{{ t(request, "storage.col.free") }}</th>
+    <th>{{ t(request, "storage.col.usage") }}</th>
+  </tr></thead>
+  <tbody>
+  {% for d in disks %}
+    <tr>
+      <td><code>{{ d.mountpoint }}</code></td>
+      <td><code>{{ d.device }}</code></td>
+      <td>{{ d.fstype }}</td>
+      <td>{{ d.total_bytes | humanbytes }}</td>
+      <td>{{ d.used_bytes | humanbytes }}</td>
+      <td>{{ d.free_bytes | humanbytes }}</td>
+      <td>
+        <div class="usage-bar" title="{{ '%.1f'|format(d.percent) }}%">
+          <div class="usage-fill {% if d.percent > 90 %}critical{% elif d.percent > 75 %}warn{% endif %}"
+               style="width: {{ d.percent }}%"></div>
+          <span>{{ '%.1f'|format(d.percent) }}%</span>
+        </div>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="empty">{{ t(request, "storage.empty") }}</p>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}{{ t(request, "scans.title") }} — {{ t(request, "app.title") }}{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>{{ t(request, "scans.title") }}</h1>
+  <form method="post" action="/scans/acknowledge-all" style="display:inline"
+        onsubmit="return confirm('{{ t(request, "scans.confirm.ack_all") }}')">
+    <button class="btn">{{ t(request, "btn.ack_all") }}</button>
+  </form>
+</div>
+
+<form method="get" action="/scans" class="filter-bar">
+  <label>{{ t(request, "scans.filter.status") }}
+    <select name="status" onchange="this.form.submit()">
+      <option value="">{{ t(request, "scans.filter.all") }}</option>
+      {% for s in statuses %}
+        <option value="{{ s }}" {% if selected_status == s %}selected{% endif %}>{{ s }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label>{{ t(request, "scans.filter.target") }}
+    <select name="target_id" onchange="this.form.submit()">
+      <option value="">{{ t(request, "scans.filter.all") }}</option>
+      {% for tgt in targets %}
+        <option value="{{ tgt.id }}" {% if selected_target_id == tgt.id %}selected{% endif %}>{{ tgt.name }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <a href="/scans" class="btn">{{ t(request, "btn.reset_filters") }}</a>
+</form>
+
+{% if scans %}
+<table
+  {% if has_live %}hx-get="{{ request.url.path }}?{{ request.url.query }}" hx-trigger="every 3s" hx-target="body" hx-swap="outerHTML" hx-select="body"{% endif %}>
+  <thead>
+    <tr>
+      <th>{{ t(request, "col.id") }}</th>
+      <th>{{ t(request, "col.target") }}</th>
+      <th>{{ t(request, "col.trigger") }}</th>
+      <th>{{ t(request, "col.status") }}</th>
+      <th>{{ t(request, "col.started") }}</th>
+      <th>{{ t(request, "col.duration") }}</th>
+      <th>{{ t(request, "col.files") }}</th>
+      <th>{{ t(request, "col.acknowledged") }}</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for scan in scans %}
+    <tr>
+      <td><a href="/scans/{{ scan.id }}">#{{ scan.id }}</a></td>
+      <td><a href="/targets/{{ scan.target.id }}">{{ scan.target.name }}</a></td>
+      <td>{{ scan.trigger }}</td>
+      <td><span class="status status-{{ scan.status }}">{{ scan.status }}</span></td>
+      <td>{{ scan.started_at | localtime }}</td>
+      <td>{% if scan.duration_ms is not none %}{{ scan.duration_ms }} ms{% else %}—{% endif %}</td>
+      <td>{{ scan.files_total if scan.files_total is not none else '—' }}</td>
+      <td>{% if scan.status == 'drift' %}{% if scan.acknowledged %}{{ t(request, "common.yes") }}{% else %}<strong>{{ t(request, "common.no") }}</strong>{% endif %}{% else %}—{% endif %}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% if has_live %}
+<p class="hint">{{ t(request, "scans.live_hint") }}</p>
+{% endif %}
+{% else %}
+<p class="empty">{{ t(request, "scans.empty") }}</p>
+{% endif %}
+{% endblock %}

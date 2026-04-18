@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}{{ t(request, "dashboard.title") }} — {{ t(request, "app.title") }}{% endblock %}
+{% block content %}
+<h1>{{ t(request, "dashboard.title") }}</h1>
+
+<section class="cards">
+  <div class="card">
+    <div class="metric">{{ targets_count }}</div>
+    <div class="label">{{ t(request, "dashboard.metric.targets") }}</div>
+  </div>
+  <div class="card">
+    <div class="metric">{{ schedules_count }}</div>
+    <div class="label">{{ t(request, "dashboard.metric.schedules") }}</div>
+  </div>
+  <div class="card {% if pending_drift %}alert{% endif %}">
+    <div class="metric">{{ pending_drift }}</div>
+    <div class="label">{{ t(request, "dashboard.metric.drifts") }}</div>
+  </div>
+</section>
+
+<h2>{{ t(request, "dashboard.recent") }}</h2>
+{% if recent_scans %}
+<table>
+  <thead>
+    <tr>
+      <th>{{ t(request, "col.id") }}</th>
+      <th>{{ t(request, "col.target") }}</th>
+      <th>{{ t(request, "col.trigger") }}</th>
+      <th>{{ t(request, "col.status") }}</th>
+      <th>{{ t(request, "col.started") }}</th>
+      <th>{{ t(request, "col.duration") }}</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for scan in recent_scans %}
+    <tr>
+      <td><a href="/scans/{{ scan.id }}">#{{ scan.id }}</a></td>
+      <td><a href="/targets/{{ scan.target.id }}">{{ scan.target.name }}</a></td>
+      <td>{{ scan.trigger }}</td>
+      <td><span class="status status-{{ scan.status }}">{{ scan.status }}</span></td>
+      <td>{{ scan.started_at | localtime }}</td>
+      <td>{% if scan.duration_ms is not none %}{{ scan.duration_ms }} ms{% else %}—{% endif %}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="empty">{{ t(request, "dashboard.empty") }}</p>
+{% endif %}
+{% endblock %}

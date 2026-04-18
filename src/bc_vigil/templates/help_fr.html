@@ -1,0 +1,282 @@
+{% extends "base.html" %}
+{% block title %}{{ t(request, "help.title") }} — {{ t(request, "app.title") }}{% endblock %}
+{% block content %}
+<h1>{{ t(request, "help.title") }}</h1>
+
+<nav class="help-toc">
+  <a href="#intro">Présentation</a>
+  <a href="#workflow">Prise en main</a>
+  <a href="#targets">Targets</a>
+  <a href="#patterns">Include / Exclude</a>
+  <a href="#baseline">Baseline</a>
+  <a href="#schedules">Schedules</a>
+  <a href="#stuck">Schedule "stuck"</a>
+  <a href="#scans">Scans</a>
+  <a href="#scan-filters">Filtrer / acquitter</a>
+  <a href="#export">Export CSV</a>
+  <a href="#cancel">Annuler un scan</a>
+  <a href="#retention">Rétention / purge auto</a>
+  <a href="#admin">Administration DB</a>
+  <a href="#config">Configuration</a>
+  <a href="#faq">FAQ</a>
+</nav>
+
+<section id="intro">
+<h2>Présentation</h2>
+<p>
+BitCrafts Vigil est une interface web pour <code>bc-hash</code>. Son objectif : surveiller
+l'intégrité de fichiers sur un serveur en hachant périodiquement des arborescences
+puis en comparant le résultat à une <strong>baseline</strong> de référence.
+</p>
+<p>
+Un changement (fichier modifié, ajouté, supprimé) déclenche un événement
+d'intégrité visible dans l'UI. Un badge rouge dans la nav à côté de
+<strong>Scans</strong> indique le nombre de dérives non acquittées.
+</p>
+</section>
+
+<section id="workflow">
+<h2>Prise en main</h2>
+<ol>
+  <li>Créer un <strong>target</strong> (un chemin à surveiller) — onglet Targets</li>
+  <li>Lancer un premier scan manuel — il devient automatiquement la <strong>baseline</strong></li>
+  <li>Ajouter un ou plusieurs <strong>schedules</strong> pour automatiser les scans</li>
+  <li>Consulter les résultats depuis le dashboard ou l'onglet Scans</li>
+  <li>Quand une dérive est détectée : l'analyser, puis soit
+    <strong>acquitter</strong>, soit
+    <strong>promouvoir le scan en baseline</strong></li>
+</ol>
+</section>
+
+<section id="targets">
+<h2>Targets</h2>
+<p>Un target représente un chemin à scanner. Champs :</p>
+<ul>
+  <li><strong>Nom</strong> unique</li>
+  <li><strong>Chemin absolu</strong> (un <code>~</code> est résolu contre le home de l'utilisateur système)</li>
+  <li><strong>Algorithme</strong> :
+    <code>sha256</code> (robuste, recommandé),
+    <code>xxh128</code> / <code>xxh3</code> (très rapides, non cryptographiques),
+    <code>crc32</code> (léger, pour détecter des corruptions accidentelles seulement)
+  </li>
+  <li><strong>Threads</strong> : <code>auto</code>, <code>0</code> (mono-thread), ou un entier</li>
+</ul>
+<p>
+Depuis la fiche d'un target :
+</p>
+<ul>
+  <li><strong>Dupliquer</strong> — crée une copie (suffixée <em>(copie)</em>) avec tous les
+    paramètres, pratique pour créer des variantes</li>
+  <li><strong>Tout acquitter</strong> — acquitte en un clic toutes les dérives non acquittées du target</li>
+  <li><strong>Supprimer</strong> — efface le target et tous ses scans, schedules, événements</li>
+</ul>
+</section>
+
+<section id="patterns">
+<h2>Include / Exclude</h2>
+<p>
+Filtrage passé à <code>bc-hash</code> via <code>--include</code> / <code>--exclude</code>.
+Matching sur <strong>basename uniquement</strong> (pas de chemin préfixe).
+</p>
+<p>Un pattern par ligne. Exemples fréquents à exclure :</p>
+<ul>
+  <li><code>.git</code> — coupe tout le store d'objets d'un dépôt git</li>
+  <li><code>node_modules</code> — dépendances JS</li>
+  <li><code>*.log</code>, <code>*.tmp</code> — fichiers volatiles</li>
+  <li><code>__pycache__</code>, <code>.venv</code> — artefacts Python</li>
+</ul>
+<p>
+Exclure un <em>répertoire</em> prune tout son sous-arbre avant descente → gros gain
+de temps et de mémoire sur de gros repos.
+</p>
+</section>
+
+<section id="baseline">
+<h2>Baseline</h2>
+<ul>
+  <li>Le <strong>premier scan réussi</strong> d'un target devient automatiquement la baseline</li>
+  <li>Tant qu'il n'y a pas de baseline, un scan ne détecte aucune dérive</li>
+  <li>Bouton <strong>Promouvoir baseline</strong> sur la fiche d'un scan (ok ou drift) pour le figer comme nouvelle référence</li>
+</ul>
+<p>La baseline courante d'un target est protégée contre la purge automatique.</p>
+</section>
+
+<section id="schedules">
+<h2>Schedules</h2>
+<p>
+Déclenchement automatique en arrière-plan (APScheduler, fuseau UTC).
+Six modes de configuration :
+</p>
+<ul>
+  <li><strong>Toutes les X minutes</strong> (1–59)</li>
+  <li><strong>Chaque heure</strong> à une minute donnée</li>
+  <li><strong>Chaque jour</strong> à une heure donnée</li>
+  <li><strong>Chaque semaine</strong> sur une sélection de jours</li>
+  <li><strong>Chaque mois</strong> le Nième jour</li>
+  <li><strong>Expression cron</strong> (5 champs) pour les cas avancés</li>
+</ul>
+<p>
+L'aperçu affiche les 5 prochaines exécutions en temps réel pendant la saisie.
+Un schedule désactivé reste en base mais n'est pas enregistré auprès du scheduler.
+</p>
+</section>
+
+<section id="stuck">
+<h2>Schedule marqué "stuck"</h2>
+<p>
+Sur la fiche d'un target, chaque schedule affiche la date du dernier run réel.
+Si aucun run programmé n'a eu lieu depuis plus de <strong>2x la période</strong>
+(ex : plus de 2 jours pour un schedule quotidien), le schedule est
+étiqueté <span class="event event-removed">stuck</span>.
+</p>
+<p>
+Causes typiques : BitCrafts Vigil était à l'arrêt, le process bc-hash a échoué de manière
+répétée, ou les scans sont restés bloqués en <code>running</code> sans annulation.
+Consulter l'onglet Scans filtré sur ce target pour diagnostiquer.
+</p>
+</section>
+
+<section id="scans">
+<h2>Scans et événements</h2>
+<p>Chaque scan passe par ces statuts :</p>
+<ul>
+  <li><span class="status status-pending">pending</span> — en file</li>
+  <li><span class="status status-running">running</span> — bc-hash en cours</li>
+  <li><span class="status status-ok">ok</span> — hashé, aucune dérive</li>
+  <li><span class="status status-drift">drift</span> — dérive détectée par rapport à la baseline</li>
+  <li><span class="status status-failed">failed</span> — erreur (binaire, I/O, etc.)</li>
+  <li><span class="status status-cancelled">cancelled</span> — interrompu par l'utilisateur</li>
+</ul>
+<p>Types d'événements :</p>
+<ul>
+  <li><span class="event event-added">added</span> — fichier présent maintenant, absent dans la baseline</li>
+  <li><span class="event event-removed">removed</span> — fichier présent dans la baseline, absent maintenant</li>
+  <li><span class="event event-modified">modified</span> — digest différent (contenu changé)</li>
+</ul>
+<p>
+<strong>Peak RSS</strong> : pic de RSS du process <code>bc-hash</code> pendant l'exécution
+(échantillonnage de <code>/proc/&lt;pid&gt;/status</code> toutes les 50 ms). Utile pour
+dimensionner la machine sur de gros repos.
+</p>
+</section>
+
+<section id="scan-filters">
+<h2>Filtrer et acquitter en masse</h2>
+<p>L'onglet <a href="/scans">Scans</a> propose :</p>
+<ul>
+  <li>Filtres par <strong>statut</strong> et par <strong>target</strong></li>
+  <li>Actualisation automatique toutes les 3 secondes lorsqu'un scan est en cours</li>
+  <li>Bouton <strong>Tout acquitter</strong> : acquitte toutes les dérives non acquittées (option par-target depuis la fiche du target)</li>
+</ul>
+<p>
+<strong>Acquitter</strong> marque la dérive comme "vue" — la baseline reste intacte,
+donc un futur scan retrouvera la même dérive. <strong>Promouvoir</strong> change la baseline.
+</p>
+</section>
+
+<section id="export">
+<h2>Export CSV</h2>
+<p>
+Sur la fiche d'un scan avec dérive, bouton <strong>Export CSV</strong> →
+<code>scan-&lt;id&gt;-events.csv</code> contenant :
+</p>
+<pre><code>scan_id,target,event_type,path,old_digest,new_digest</code></pre>
+<p>Utile pour analyse dans un tableur ou intégration dans un SIEM externe.</p>
+</section>
+
+<section id="cancel">
+<h2>Annuler un scan</h2>
+<p>Sur la fiche d'un scan en cours :</p>
+<ul>
+  <li><strong>Annuler</strong> — SIGTERM, scan marqué <code>cancelled</code>, digest partiel supprimé</li>
+  <li><strong>Forcer l'arrêt</strong> — SIGKILL (pour les cas où SIGTERM ne suffit pas)</li>
+</ul>
+</section>
+
+<section id="retention">
+<h2>Rétention / purge automatique</h2>
+<p>
+Variable d'environnement <code>BC_VIGIL_SCAN_RETENTION_DAYS</code> :
+</p>
+<ul>
+  <li><code>0</code> (défaut) — aucune purge, tout est conservé</li>
+  <li><code>N &gt; 0</code> — un job tourne toutes les 24 h et supprime les scans terminés
+    (et leurs digests) dont <code>started_at</code> est antérieur à <code>now - N jours</code></li>
+</ul>
+<p>
+La baseline courante d'un target et les scans non terminés
+(<code>pending</code> / <code>running</code>) sont toujours protégés.
+</p>
+</section>
+
+<section id="admin">
+<h2>Administration DB</h2>
+<p>Onglet <a href="/admin">Admin</a>. Trois actions :</p>
+<ul>
+  <li><strong>Backup</strong> — téléchargement d'un <code>.tar.gz</code> (DB + digests).
+    Peut être pris à chaud.</li>
+  <li><strong>Restaurer</strong> — upload d'un backup : remplace DB et digests.
+    Snapshot automatique pris avant.</li>
+  <li><strong>Réinitialiser</strong> — efface targets, schedules, scans et digests.
+    Snapshot automatique pris avant.</li>
+</ul>
+<p>
+Bloqué si des scans sont <code>pending</code> ou <code>running</code>. Le scheduler
+est arrêté pendant l'opération puis redémarré.
+</p>
+</section>
+
+<section id="config">
+<h2>Configuration (variables d'environnement)</h2>
+<table>
+  <thead><tr><th>Variable</th><th>Défaut</th><th>Rôle</th></tr></thead>
+  <tbody>
+    <tr><td><code>BC_VIGIL_HOST</code></td><td><code>127.0.0.1</code></td><td>adresse d'écoute</td></tr>
+    <tr><td><code>BC_VIGIL_PORT</code></td><td><code>8080</code></td><td>port d'écoute</td></tr>
+    <tr><td><code>BC_VIGIL_DATA_DIR</code></td><td><code>./var</code></td><td>DB SQLite + digests</td></tr>
+    <tr><td><code>BC_VIGIL_BC_HASH_BINARY</code></td><td><code>bc-hash</code></td><td>chemin du binaire</td></tr>
+    <tr><td><code>BC_VIGIL_DISPLAY_TZ</code></td><td><code>UTC</code></td><td>fuseau d'affichage (ex: <code>Europe/Paris</code>) — les données restent UTC en base, seule la présentation change</td></tr>
+    <tr><td><code>BC_VIGIL_MAX_PARALLEL_SCANS</code></td><td><code>2</code></td><td>scans concurrents max</td></tr>
+    <tr><td><code>BC_VIGIL_SCAN_RETENTION_DAYS</code></td><td><code>0</code></td><td>rétention — voir section Purge</td></tr>
+  </tbody>
+</table>
+<p class="hint">Fuseau courant : <code>{{ display_tz() }}</code></p>
+</section>
+
+<section id="faq">
+<h2>FAQ</h2>
+<dl class="faq">
+  <dt>Pourquoi mon premier scan n'affiche aucune dérive ?</dt>
+  <dd>C'est le comportement attendu : le premier scan devient la baseline, il n'y a
+    rien à quoi le comparer.</dd>
+
+  <dt>Peut-on surveiller un fichier unique (pas un dossier) ?</dt>
+  <dd>Oui — le chemin du target peut être un fichier ou un répertoire.</dd>
+
+  <dt>Quelle différence entre acquitter et promouvoir baseline ?</dt>
+  <dd><strong>Acquitter</strong> : marque la dérive comme "vue". La baseline reste
+    intacte, donc un futur scan retrouvera la même dérive.
+    <strong>Promouvoir</strong> : adopte le scan courant comme nouvelle référence,
+    la dérive disparaît du point de vue des scans suivants.</dd>
+
+  <dt>Comment supprimer les vieux scans ?</dt>
+  <dd>Soit activer <code>BC_VIGIL_SCAN_RETENTION_DAYS</code> pour purge automatique,
+    soit supprimer un target (cascade tous ses scans), soit reset DB complet.</dd>
+
+  <dt>Quel algorithme choisir ?</dt>
+  <dd>Pour la détection de modifications malveillantes : <code>sha256</code>.
+    Pour la détection de corruption accidentelle sur gros volumes : <code>xxh128</code>
+    (beaucoup plus rapide). <code>crc32</code> : uniquement pour des cas légers,
+    collisions plus probables.</dd>
+
+  <dt>Un schedule affiche "stuck", que faire ?</dt>
+  <dd>Vérifier que BitCrafts Vigil tourne sans interruption, regarder les scans récents du target
+    pour voir s'il y a des échecs successifs ou des scans bloqués. Un redémarrage
+    réinitialisera les jobs.</dd>
+
+  <dt>Peut-on consommer les événements d'un scan depuis un script ?</dt>
+  <dd>Oui, <code>GET /scans/&lt;id&gt;/events.csv</code> retourne un CSV
+    (Content-Type <code>text/csv</code>), utilisable en curl + jq/csvkit ou dans un SIEM.</dd>
+</dl>
+</section>
+{% endblock %}
