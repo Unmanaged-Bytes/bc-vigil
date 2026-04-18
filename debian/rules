@@ -18,4 +18,4 @@ override_dh_strip:
 	dh_strip --exclude=.so
 
 override_dh_shlibdeps:
-	dh_shlibdeps --exclude-package=bc-vigil
+	dh_shlibdeps -X/opt/venvs/bc-vigil
