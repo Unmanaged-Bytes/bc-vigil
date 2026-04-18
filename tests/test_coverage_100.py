@@ -371,6 +371,26 @@ def test_execute_scan_persists_even_if_scan_vanished_post_hash(tmp_path, monkeyp
         assert session.get(models.Scan, scan_id) is None
 
 
+def test_run_hash_handles_empty_target_without_digest_file(tmp_path, monkeypatch):
+    from bc_vigil.config import settings
+    from bc_vigil.integrity import bchash
+
+    fake_binary = tmp_path / "fake-bc-hash"
+    fake_binary.write_text("#!/bin/sh\nexit 0\n")
+    fake_binary.chmod(0o755)
+    monkeypatch.setattr(settings, "bc_hash_binary", str(fake_binary))
+
+    empty_target = tmp_path / "empty-tree"
+    empty_target.mkdir()
+    digest = tmp_path / "digests" / "scan.ndjson"
+
+    result = bchash.run_hash(empty_target, digest, "sha256")
+
+    assert result.files_total == 0
+    assert result.bytes_total == 0
+    assert digest.exists()
+
+
 # -------------------- scheduler.py: paths ----------------------------------
 
 

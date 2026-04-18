@@ -1,3 +1,14 @@
+bc-vigil (0.1.1-1) stable; urgency=medium
+
+  * Fix "unexpected: No such file" when scanning an empty target:
+    bc-hash exits 0 without producing a digest, run_hash now synthesizes
+    an empty-summary digest so the baseline/diff flow stays valid.
+  * systemd unit: grant AmbientCapabilities=CAP_DAC_READ_SEARCH so the
+    unprivileged bc-vigil user can read /etc/shadow, SSH host keys,
+    /etc/ufw/*, etc. Read-only capability, no write privilege added.
+
+ -- Younes Benmoussa <younes.benmoussa@pm.me>  Sat, 18 Apr 2026 20:30:00 +0000
+
 bc-vigil (0.1.0-1) stable; urgency=medium
 
   * Initial release.
