@@ -306,6 +306,20 @@ def test_execute_scan_handles_unexpected_exception(tmp_path, monkeypatch):
         assert "unexpected" in scan.error
 
 
+def _fake_run_hash(target_path, digest_path, algorithm, threads,
+                   includes=None, excludes=None, cancel=None):
+    from bc_vigil.integrity.bchash import HashResult
+    digest_path.parent.mkdir(parents=True, exist_ok=True)
+    digest_path.write_text('{"path":"x.txt","digest":"abc"}\n')
+    return HashResult(
+        digest_path=digest_path,
+        files_total=1,
+        bytes_total=1,
+        wall_ms=1,
+        files_error=0,
+    )
+
+
 def test_execute_scan_with_diff_error(tmp_path, monkeypatch):
     target_id = _make_target(tmp_path)
     (Path(tmp_path) / f"tree-c100" / "x.txt").write_text("x")
@@ -313,6 +327,8 @@ def test_execute_scan_with_diff_error(tmp_path, monkeypatch):
     from bc_vigil import models
     from bc_vigil.integrity import bchash, scans
     from bc_vigil.db import SessionLocal
+
+    monkeypatch.setattr(bchash, "run_hash", _fake_run_hash)
 
     first_scan = scans.trigger_scan(target_id)
     scans.execute_scan(first_scan)
@@ -340,10 +356,8 @@ def test_execute_scan_persists_even_if_scan_vanished_post_hash(tmp_path, monkeyp
 
     scan_id = scans.trigger_scan(target_id)
 
-    original_run = bchash.run_hash
-
     def run_then_delete_scan(*a, **kw):
-        result = original_run(*a, **kw)
+        result = _fake_run_hash(*a, **kw)
         with SessionLocal() as session:
             session.query(models.Scan).filter_by(id=scan_id).delete()
             session.commit()
