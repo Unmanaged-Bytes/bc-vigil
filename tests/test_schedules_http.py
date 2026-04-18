@@ -147,6 +147,19 @@ def test_preview_endpoint(tmp_path, monkeypatch):
         assert r.text.count("<li>") == 5
 
 
+def test_schedule_form_has_no_conflicting_hidden_time_input(tmp_path, monkeypatch):
+    _setup(tmp_path, monkeypatch)
+    target_id = _make_target(tmp_path)
+
+    from bc_vigil.app import create_app
+    from fastapi.testclient import TestClient
+
+    with TestClient(create_app()) as client:
+        r = client.get(f"/schedules/new?target_id={target_id}")
+        assert r.status_code == 200
+        assert '<input type="hidden" name="time"' not in r.text
+
+
 def test_preview_invalid_weekly_shows_error(tmp_path, monkeypatch):
     _setup(tmp_path, monkeypatch)
     from bc_vigil.app import create_app

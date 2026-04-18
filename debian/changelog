@@ -1,3 +1,15 @@
+bc-vigil (0.1.2-1) stable; urgency=medium
+
+  * Fix schedule form silently ignoring the time picked by the user:
+    the template rendered two inputs named "time" (one per mode panel
+    plus a global hidden fallback at 03:00). Weekly/monthly panels
+    only updated the first match via JS, while the hidden one shipped
+    with its default value to the server. Each mode panel now owns a
+    single visible name="time" input, panels are disabled by JS when
+    unused, no hidden fallback, no onchange glue.
+
+ -- Younes Benmoussa <younes.benmoussa@pm.me>  Sat, 18 Apr 2026 21:00:00 +0000
+
 bc-vigil (0.1.1-1) stable; urgency=medium
 
   * Fix "unexpected: No such file" when scanning an empty target:

@@ -43,8 +43,7 @@
 
   <div data-mode-panel="weekly" hidden>
     <label>{{ t(request, "schedules.form.time") }}
-      <input type="time" name="time_weekly" value="{{ state.time }}"
-             onchange="document.querySelector('input[name=time]').value = this.value">
+      <input type="time" name="time" value="{{ state.time }}">
     </label>
     <fieldset class="days">
       <legend>{{ t(request, "schedules.form.days") }}</legend>
@@ -64,8 +63,7 @@
 
   <div data-mode-panel="monthly" hidden>
     <label>{{ t(request, "schedules.form.time") }}
-      <input type="time" name="time_monthly" value="{{ state.time }}"
-             onchange="document.querySelector('input[name=time]').value = this.value">
+      <input type="time" name="time" value="{{ state.time }}">
     </label>
     <label>{{ t(request, "schedules.form.day_of_month") }}
       <input type="number" name="day_of_month" min="1" max="31" value="{{ state.day_of_month }}">
@@ -78,8 +76,6 @@
       <input name="cron_expr" value="{{ state.cron_expr }}" placeholder="0 3 * * *">
     </label>
   </div>
-
-  <input type="hidden" name="time" value="{{ state.time }}">
 
   <label class="inline">
     <input type="checkbox" name="enabled" value="true" checked>
