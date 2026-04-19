@@ -20,8 +20,14 @@ case "$1" in
 
         if ! command -v bc-hash >/dev/null 2>&1; then
             echo "WARNING: bc-hash binary not found in PATH." >&2
-            echo "         BitCrafts Vigil needs it to perform scans." >&2
+            echo "         BitCrafts Vigil needs it to perform integrity scans." >&2
             echo "         Install bc-hash before starting the service." >&2
+        fi
+
+        if ! command -v bc-duplicate >/dev/null 2>&1; then
+            echo "WARNING: bc-duplicate binary not found in PATH." >&2
+            echo "         BitCrafts Vigil needs it to perform duplicate scans." >&2
+            echo "         Install bc-duplicate before starting the service." >&2
         fi
         ;;
     abort-upgrade|abort-remove|abort-deconfigure)

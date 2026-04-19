@@ -16,6 +16,12 @@
       {% set _pd = nav_pending_drift() %}
       {% if _pd %}<span class="nav-badge">{{ _pd }}</span>{% endif %}
     </a>
+    <a href="/dedup/targets">{{ t(request, "nav.dedup") }}</a>
+    <a href="/dedup/scans">
+      {{ t(request, "nav.dedup_scans") }}
+      {% set _pduplicates = nav_pending_duplicates() %}
+      {% if _pduplicates %}<span class="nav-badge">{{ _pduplicates }}</span>{% endif %}
+    </a>
     <a href="/storage">{{ t(request, "nav.storage") }}</a>
     <span class="nav-spacer"></span>
     <a href="/admin">{{ t(request, "nav.admin") }}</a>

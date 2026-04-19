@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}{{ t(request, "dedup.targets.new") }} — {{ t(request, "app.title") }}{% endblock %}
+{% block content %}
+<h1>{{ t(request, "dedup.targets.new") }}</h1>
+
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
+
+<form method="post" action="/dedup/targets" class="form">
+  <label>{{ t(request, "targets.form.name") }}
+    <input name="name" value="{{ target.name if target else '' }}" required>
+  </label>
+  <label>{{ t(request, "targets.form.path") }}
+    <input name="path" value="{{ target.path if target else '' }}" required>
+  </label>
+  <label>{{ t(request, "targets.form.algo") }}
+    <select name="algorithm">
+      {% for algo in algorithms %}
+        <option value="{{ algo }}"
+          {% if target and target.algorithm == algo %}selected{% elif not target and algo == 'xxh3' %}selected{% endif %}>
+          {{ algo }}
+        </option>
+      {% endfor %}
+    </select>
+  </label>
+  <label>{{ t(request, "targets.form.threads") }}
+    <input name="threads" value="{{ target.threads if target else 'auto' }}">
+  </label>
+
+  <label>{{ t(request, "dedup.form.minimum_size") }}
+    <input type="number" name="minimum_size" min="0"
+           value="{{ target.minimum_size if target and target.minimum_size is not none else '' }}"
+           placeholder="1">
+  </label>
+  <p class="hint">{{ t(request, "dedup.form.minimum_size_hint") }}</p>
+
+  <label>{{ t(request, "targets.form.excludes") }}
+    <textarea name="excludes" rows="4" placeholder=".git&#10;node_modules&#10;*.log&#10;*.tmp">{{ target.excludes if target else '' }}</textarea>
+  </label>
+  <p class="hint">{{ t(request, "targets.form.excludes_hint") | safe }}</p>
+
+  <label>{{ t(request, "targets.form.includes") }}
+    <textarea name="includes" rows="3" placeholder="*.iso&#10;*.mp4">{{ target.includes if target else '' }}</textarea>
+  </label>
+
+  <fieldset class="flags">
+    <legend>{{ t(request, "dedup.form.flags") }}</legend>
+    <label class="inline">
+      <input type="checkbox" name="include_hidden" value="true"
+             {% if target and target.include_hidden %}checked{% endif %}>
+      {{ t(request, "dedup.form.include_hidden") }}
+    </label>
+    <label class="inline">
+      <input type="checkbox" name="follow_symlinks" value="true"
+             {% if target and target.follow_symlinks %}checked{% endif %}>
+      {{ t(request, "dedup.form.follow_symlinks") }}
+    </label>
+    <label class="inline">
+      <input type="checkbox" name="match_hardlinks" value="true"
+             {% if target and target.match_hardlinks %}checked{% endif %}>
+      {{ t(request, "dedup.form.match_hardlinks") }}
+    </label>
+    <label class="inline">
+      <input type="checkbox" name="one_file_system" value="true"
+             {% if target and target.one_file_system %}checked{% endif %}>
+      {{ t(request, "dedup.form.one_file_system") }}
+    </label>
+  </fieldset>
+
+  <div>
+    <button class="btn primary" type="submit">{{ t(request, "btn.create") }}</button>
+    <a href="/dedup/targets" class="btn">{{ t(request, "btn.back") }}</a>
+  </div>
+</form>
+{% endblock %}

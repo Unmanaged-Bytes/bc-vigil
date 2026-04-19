@@ -10,6 +10,7 @@ def isolate_db(tmp_path, monkeypatch):
     from bc_vigil.config import settings
     monkeypatch.setattr(settings, "data_dir", tmp_path / "var")
     monkeypatch.setattr(settings, "bc_hash_binary", "bc-hash")
+    monkeypatch.setattr(settings, "bc_duplicate_binary", "bc-duplicate")
 
     from bc_vigil import db as db_module
     db_module.reset_engine()

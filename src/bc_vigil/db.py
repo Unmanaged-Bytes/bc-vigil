@@ -34,6 +34,7 @@ def init_db() -> None:
 
     settings.data_dir.mkdir(parents=True, exist_ok=True)
     settings.digests_dir.mkdir(parents=True, exist_ok=True)
+    settings.dedup_dir.mkdir(parents=True, exist_ok=True)
     models.Base.metadata.create_all(engine)
     _add_missing_columns(models.Base)
 

@@ -16,11 +16,16 @@ Architecture: amd64
 Depends: ${misc:Depends},
          python3 (>= 3.11),
          adduser
-Recommends: bc-hash
+Recommends: bc-hash,
+            bc-duplicate
 Description: BitCrafts Vigil - file integrity monitoring web UI
  Web frontend for bc-hash. Lets operators register targets (file
  trees to hash), schedule periodic scans, and compare results to a
  baseline to detect file integrity drift (added / removed / modified).
+ .
+ Also ships a duplicate-file finder module backed by bc-duplicate:
+ register trees, schedule periodic scans, and review duplicate
+ groups with wasted-bytes accounting.
  .
  Includes a storage module showing disk usage per mountpoint, DB
  backup/restore/reset, and an FR/EN UI.

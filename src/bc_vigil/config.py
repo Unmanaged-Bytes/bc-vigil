@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     port: int = 8080
     data_dir: Path = Path("./var")
     bc_hash_binary: str = "bc-hash"
+    bc_duplicate_binary: str = "bc-duplicate"
     default_algorithm: str = "sha256"
     default_threads: str = "auto"
     max_parallel_scans: int = 2
@@ -22,6 +23,10 @@ class Settings(BaseSettings):
     @property
     def digests_dir(self) -> Path:
         return self.data_dir / "digests"
+
+    @property
+    def dedup_dir(self) -> Path:
+        return self.data_dir / "dedup"
 
 
 settings = Settings()

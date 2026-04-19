@@ -20,27 +20,39 @@ class AdminError(RuntimeError):
 
 DB_FILENAME = "bc-vigil.sqlite"
 DIGESTS_DIRNAME = "digests"
+DEDUP_DIRNAME = "dedup"
 
 
 def has_active_scans() -> int:
     with SessionLocal() as session:
-        return session.scalar(
+        integrity_active = session.scalar(
             select(func.count()).select_from(models.Scan).where(
                 models.Scan.status.in_([models.SCAN_PENDING, models.SCAN_RUNNING])
             )
         ) or 0
+        dedup_active = session.scalar(
+            select(func.count()).select_from(models.DedupScan).where(
+                models.DedupScan.status.in_(
+                    [models.DEDUP_PENDING, models.DEDUP_RUNNING]
+                )
+            )
+        ) or 0
+        return int(integrity_active) + int(dedup_active)
 
 
 def build_backup_archive() -> bytes:
     buf = io.BytesIO()
     db_path = settings.data_dir / DB_FILENAME
     digests_dir = settings.digests_dir
+    dedup_dir = settings.dedup_dir
 
     with tarfile.open(fileobj=buf, mode="w:gz") as tar:
         if db_path.exists():
             tar.add(db_path, arcname=DB_FILENAME)
         if digests_dir.exists():
             tar.add(digests_dir, arcname=DIGESTS_DIRNAME)
+        if dedup_dir.exists():
+            tar.add(dedup_dir, arcname=DEDUP_DIRNAME)
     return buf.getvalue()
 
 
@@ -68,7 +80,9 @@ def reset_database() -> Path:
     snapshot = snapshot_to_dir(settings.data_dir / "snapshots")
 
     from bc_vigil.integrity import scheduler
+    from bc_vigil.dedup import scheduler as dedup_scheduler
     scheduler.shutdown()
+    dedup_scheduler.shutdown()
 
     db_path = settings.data_dir / DB_FILENAME
     if db_path.exists():
@@ -81,10 +95,14 @@ def reset_database() -> Path:
     digests_dir = settings.digests_dir
     if digests_dir.exists():
         shutil.rmtree(digests_dir)
+    dedup_dir = settings.dedup_dir
+    if dedup_dir.exists():
+        shutil.rmtree(dedup_dir)
 
     db_module.reset_engine()
     db_module.init_db()
     scheduler.start()
+    dedup_scheduler.start()
     return snapshot
 
 
@@ -112,7 +130,9 @@ def restore_from_archive(archive_bytes: bytes) -> Path:
 
         from bc_vigil import db as db_module
         from bc_vigil.integrity import scheduler
+        from bc_vigil.dedup import scheduler as dedup_scheduler
         scheduler.shutdown()
+        dedup_scheduler.shutdown()
 
         db_path = settings.data_dir / DB_FILENAME
         if db_path.exists():
@@ -125,6 +145,9 @@ def restore_from_archive(archive_bytes: bytes) -> Path:
         digests_dir = settings.digests_dir
         if digests_dir.exists():
             shutil.rmtree(digests_dir)
+        dedup_dir = settings.dedup_dir
+        if dedup_dir.exists():
+            shutil.rmtree(dedup_dir)
 
         shutil.copy2(extracted_db, db_path)
         extracted_digests = tmp_path / DIGESTS_DIRNAME
@@ -132,10 +155,16 @@ def restore_from_archive(archive_bytes: bytes) -> Path:
             shutil.copytree(extracted_digests, digests_dir)
         else:
             digests_dir.mkdir(parents=True, exist_ok=True)
+        extracted_dedup = tmp_path / DEDUP_DIRNAME
+        if extracted_dedup.exists():
+            shutil.copytree(extracted_dedup, dedup_dir)
+        else:
+            dedup_dir.mkdir(parents=True, exist_ok=True)
 
         db_module.reset_engine()
         db_module.init_db()
         scheduler.start()
+        dedup_scheduler.start()
         return snapshot
 
 

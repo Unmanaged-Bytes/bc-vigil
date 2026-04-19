@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}{{ t(request, "dedup.scans.detail.title") }} #{{ scan.id }} — {{ t(request, "app.title") }}{% endblock %}
+{% block content %}
+<div class="page-header"
+  {% if scan.status in ['pending', 'running'] %}
+    hx-get="/dedup/scans/{{ scan.id }}" hx-trigger="every 2s" hx-target="body" hx-swap="outerHTML"
+  {% endif %}>
+  <h1>{{ t(request, "dedup.scans.detail.title") }} #{{ scan.id }} — <span class="status status-{{ scan.status }}">{{ scan.status }}</span></h1>
+  <div class="actions">
+    {% if scan.status in ['pending', 'running'] %}
+      <form method="post" action="/dedup/scans/{{ scan.id }}/cancel" style="display:inline"
+            onsubmit="return confirm('{{ t(request, "scans.confirm.cancel") }}')">
+        <button class="btn">{{ t(request, "btn.cancel") }}</button>
+      </form>
+      <form method="post" action="/dedup/scans/{{ scan.id }}/cancel?force=true" style="display:inline"
+            onsubmit="return confirm('{{ t(request, "scans.confirm.force") }}')">
+        <button class="btn danger">{{ t(request, "btn.force_stop") }}</button>
+      </form>
+    {% endif %}
+    {% if scan.status == 'duplicates' and not scan.acknowledged %}
+      <form method="post" action="/dedup/scans/{{ scan.id }}/acknowledge" style="display:inline">
+        <button class="btn">{{ t(request, "btn.acknowledge") }}</button>
+      </form>
+    {% endif %}
+    {% if scan.status == 'duplicates' and groups %}
+      <a href="/dedup/scans/{{ scan.id }}/groups.csv" class="btn">{{ t(request, "btn.export_csv") }}</a>
+    {% endif %}
+  </div>
+</div>
+
+<dl class="meta">
+  <dt>{{ t(request, "col.target") }}</dt><dd><a href="/dedup/targets/{{ scan.target.id }}">{{ scan.target.name }}</a> — <code>{{ scan.target.path }}</code></dd>
+  <dt>{{ t(request, "scans.detail.trigger") }}</dt><dd>{{ scan.trigger }}</dd>
+  <dt>{{ t(request, "scans.detail.started") }}</dt><dd>{{ scan.started_at | localtime }}</dd>
+  <dt>{{ t(request, "scans.detail.finished") }}</dt><dd>{{ scan.finished_at | localtime }}</dd>
+  <dt>{{ t(request, "scans.detail.duration") }}</dt><dd>{% if scan.duration_ms is not none %}{{ scan.duration_ms }} ms{% else %}—{% endif %}</dd>
+  <dt>{{ t(request, "dedup.scans.detail.files_scanned") }}</dt><dd>{{ scan.files_scanned if scan.files_scanned is not none else '—' }}</dd>
+  <dt>{{ t(request, "dedup.scans.detail.groups") }}</dt><dd>{{ scan.duplicate_groups if scan.duplicate_groups is not none else '—' }}</dd>
+  <dt>{{ t(request, "dedup.scans.detail.duplicate_files") }}</dt><dd>{{ scan.duplicate_files if scan.duplicate_files is not none else '—' }}</dd>
+  <dt>{{ t(request, "dedup.scans.detail.wasted") }}</dt><dd>{{ scan.wasted_bytes | humanbytes }}</dd>
+  <dt>{{ t(request, "scans.detail.rss") }}</dt><dd>{{ scan.peak_rss_bytes | humanbytes }}</dd>
+  <dt>{{ t(request, "dedup.scans.detail.output") }}</dt><dd><code>{{ scan.output_path or '—' }}</code></dd>
+  {% if scan.error %}<dt>{{ t(request, "scans.detail.error") }}</dt><dd class="error">{{ scan.error }}</dd>{% endif %}
+</dl>
+
+{% if scan.status == 'duplicates' and groups %}
+<h2>{{ t(request, "dedup.scans.groups") }} ({{ groups | length }})</h2>
+{% for group in groups %}
+<div class="dedup-group">
+  <h3>{{ t(request, "dedup.scans.group") }} — {{ group.size | humanbytes }} × {{ group.file_count }}</h3>
+  <ul>
+    {% for path in group.paths %}
+      <li><code>{{ path }}</code></li>
+    {% endfor %}
+  </ul>
+</div>
+{% endfor %}
+{% elif scan.status == 'ok' %}
+<p class="ok">{{ t(request, "dedup.scans.no_duplicates") }}</p>
+{% endif %}
+{% endblock %}
