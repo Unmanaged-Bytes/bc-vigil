@@ -13,10 +13,11 @@ from sqlalchemy.orm import Session
 from bc_vigil import models
 from bc_vigil.config import settings
 from bc_vigil.db import SessionLocal, session_scope
-from bc_vigil.dedup import scans
+from bc_vigil.dedup import quarantine, scans
 
 
 PURGE_JOB_ID = "bc-vigil-dedup-purge"
+TRASH_PURGE_JOB_ID = "bc-vigil-dedup-trash-purge"
 
 log = logging.getLogger(__name__)
 
@@ -68,6 +69,7 @@ def start() -> BackgroundScheduler:
     _scheduler.start()
     _reload_jobs()
     _install_purge_job()
+    _install_trash_purge_job()
     return _scheduler
 
 
@@ -82,6 +84,27 @@ def _install_purge_job() -> None:
         max_instances=1,
         next_run_time=datetime.now(timezone.utc) + timedelta(minutes=5),
     )
+
+
+def _install_trash_purge_job() -> None:
+    if settings.dedup_trash_retention_days <= 0:
+        return
+    scheduler().add_job(
+        _purge_trash,
+        trigger=IntervalTrigger(hours=24),
+        id=TRASH_PURGE_JOB_ID,
+        replace_existing=True,
+        max_instances=1,
+        next_run_time=datetime.now(timezone.utc) + timedelta(minutes=10),
+    )
+
+
+def _purge_trash() -> int:
+    try:
+        return quarantine.purge_expired()
+    except Exception:
+        log.exception("trash purge failed")
+        return 0
 
 
 def purge_old_scans() -> int:

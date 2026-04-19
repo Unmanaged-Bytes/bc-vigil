@@ -98,6 +98,9 @@ def reset_database() -> Path:
     dedup_dir = settings.dedup_dir
     if dedup_dir.exists():
         shutil.rmtree(dedup_dir)
+    trash_dir = settings.dedup_trash_dir_resolved
+    if trash_dir.exists() and trash_dir != dedup_dir:
+        shutil.rmtree(trash_dir, ignore_errors=True)
 
     db_module.reset_engine()
     db_module.init_db()
@@ -148,6 +151,9 @@ def restore_from_archive(archive_bytes: bytes) -> Path:
         dedup_dir = settings.dedup_dir
         if dedup_dir.exists():
             shutil.rmtree(dedup_dir)
+        trash_dir = settings.dedup_trash_dir_resolved
+        if trash_dir.exists() and trash_dir != dedup_dir:
+            shutil.rmtree(trash_dir, ignore_errors=True)
 
         shutil.copy2(extracted_db, db_path)
         extracted_digests = tmp_path / DIGESTS_DIRNAME

@@ -1,4 +1,6 @@
 from pathlib import Path
+from typing import Optional
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -15,6 +17,9 @@ class Settings(BaseSettings):
     max_parallel_scans: int = 2
     display_tz: str = "UTC"
     scan_retention_days: int = 0
+    dedup_trash_dir: Optional[Path] = None
+    dedup_trash_retention_days: int = 7
+    dedup_deletion_bulk_threshold: int = 500
 
     @property
     def db_url(self) -> str:
@@ -27,6 +32,10 @@ class Settings(BaseSettings):
     @property
     def dedup_dir(self) -> Path:
         return self.data_dir / "dedup"
+
+    @property
+    def dedup_trash_dir_resolved(self) -> Path:
+        return self.dedup_trash_dir or (self.data_dir / "dedup" / "trash")
 
 
 settings = Settings()

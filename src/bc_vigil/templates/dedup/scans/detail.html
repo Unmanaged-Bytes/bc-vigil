@@ -45,16 +45,35 @@
 
 {% if scan.status == 'duplicates' and groups %}
 <h2>{{ t(request, "dedup.scans.groups") }} ({{ groups | length }})</h2>
-{% for group in groups %}
-<div class="dedup-group">
-  <h3>{{ t(request, "dedup.scans.group") }} — {{ group.size | humanbytes }} × {{ group.file_count }}</h3>
-  <ul>
-    {% for path in group.paths %}
-      <li><code>{{ path }}</code></li>
-    {% endfor %}
-  </ul>
-</div>
-{% endfor %}
+
+<form method="post" action="/dedup/scans/{{ scan.id }}/delete-preview" class="dedup-delete-form">
+  <p class="hint">{{ t(request, "dedup.delete.hint") | safe }}</p>
+  {% for group in groups %}
+  <div class="dedup-group">
+    <h3>{{ t(request, "dedup.scans.group") }} #{{ group.id if group.id is defined else loop.index }} — {{ group.size | humanbytes }} × {{ group.file_count }}</h3>
+    <ul>
+      {% for path in group.paths %}
+        <li>
+          {% if path in group.quarantined %}
+            <span class="dedup-quarantined">{{ t(request, "dedup.delete.quarantined") }}</span>
+            <code>{{ path }}</code>
+          {% else %}
+          <label class="inline">
+            <input type="checkbox"
+                   name="group_{{ group.id }}"
+                   value="{{ path }}">
+            <code>{{ path }}</code>
+          </label>
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endfor %}
+  <div>
+    <button class="btn danger" type="submit">{{ t(request, "dedup.delete.preview_btn") }}</button>
+  </div>
+</form>
 {% elif scan.status == 'ok' %}
 <p class="ok">{{ t(request, "dedup.scans.no_duplicates") }}</p>
 {% endif %}

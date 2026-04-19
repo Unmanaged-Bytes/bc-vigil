@@ -177,6 +177,9 @@ tr:last-child td { border-bottom: none; }
 .status-pending { background: rgba(138, 144, 160, 0.15); color: var(--muted); }
 .status-cancelled { background: rgba(138, 144, 160, 0.15); color: var(--muted); text-decoration: line-through; }
 .status-duplicates { background: rgba(251, 191, 36, 0.15); color: var(--warn); }
+.status-quarantined { background: rgba(251, 191, 36, 0.15); color: var(--warn); }
+.status-restored { background: rgba(74, 222, 128, 0.15); color: var(--ok); }
+.status-purged { background: rgba(138, 144, 160, 0.15); color: var(--muted); text-decoration: line-through; }
 
 .dedup-group {
   margin: 1rem 0;
@@ -191,6 +194,15 @@ tr:last-child td { border-bottom: none; }
 .dedup-group ul {
   margin: 0;
   padding-left: 1.25rem;
+}
+.dedup-quarantined {
+  display: inline-block;
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+  font-size: 0.75rem;
+  background: rgba(138, 144, 160, 0.15);
+  color: var(--muted);
+  margin-right: 0.4rem;
 }
 
 .event {

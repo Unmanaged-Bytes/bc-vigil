@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}{{ t(request, "dedup.delete.preview_title") }} — {{ t(request, "app.title") }}{% endblock %}
+{% block content %}
+<h1>{{ t(request, "dedup.delete.preview_title") }} — {{ t(request, "dedup.scans.detail.title") }} #{{ scan.id }}</h1>
+
+{% if error %}
+<p class="error">{{ error }}</p>
+<p><a href="/dedup/scans/{{ scan.id }}" class="btn">{{ t(request, "btn.back") }}</a></p>
+{% else %}
+
+<section>
+  <h2>{{ t(request, "dedup.delete.summary") }}</h2>
+  <dl class="meta">
+    <dt>{{ t(request, "dedup.delete.to_move") }}</dt>
+    <dd>{{ plan.items | length }}</dd>
+    <dt>{{ t(request, "dedup.delete.total_size") }}</dt>
+    <dd>{{ plan.total_size | humanbytes }}</dd>
+    <dt>{{ t(request, "dedup.delete.cross_fs") }}</dt>
+    <dd>{{ plan.cross_fs_count }}</dd>
+    <dt>{{ t(request, "dedup.delete.skipped") }}</dt>
+    <dd>{{ plan.skipped | length }}</dd>
+  </dl>
+</section>
+
+{% if plan.cross_fs_count %}
+<p class="error">{{ t(request, "dedup.delete.warn_cross_fs") }}</p>
+{% endif %}
+
+{% if plan.requires_bulk_opt_in %}
+<p class="error">{{ t(request, "dedup.delete.warn_bulk") }}</p>
+{% endif %}
+
+{% if plan.items %}
+<h2>{{ t(request, "dedup.delete.items") }} ({{ plan.items | length }})</h2>
+<table>
+  <thead><tr>
+    <th>{{ t(request, "dedup.delete.col.group") }}</th>
+    <th>{{ t(request, "dedup.delete.col.path") }}</th>
+    <th>{{ t(request, "dedup.delete.col.size") }}</th>
+    <th>{{ t(request, "dedup.delete.col.mode") }}</th>
+    <th>{{ t(request, "dedup.delete.col.trash") }}</th>
+  </tr></thead>
+  <tbody>
+  {% for item in plan.items %}
+    <tr>
+      <td>#{{ item.group_id }}</td>
+      <td><code>{{ item.original_path }}</code></td>
+      <td>{{ item.size | humanbytes }}</td>
+      <td>{{ item.stored_mode }}</td>
+      <td><code class="digest">{{ item.trash_path }}</code></td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+{% if plan.skipped %}
+<h2>{{ t(request, "dedup.delete.skipped_title") }} ({{ plan.skipped | length }})</h2>
+<table>
+  <thead><tr>
+    <th>{{ t(request, "dedup.delete.col.group") }}</th>
+    <th>{{ t(request, "dedup.delete.col.path") }}</th>
+    <th>{{ t(request, "dedup.delete.col.reason") }}</th>
+  </tr></thead>
+  <tbody>
+  {% for item in plan.skipped %}
+    <tr>
+      <td>#{{ item.group_id }}</td>
+      <td><code>{{ item.original_path }}</code></td>
+      <td>{{ item.reason }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+{% if plan.items %}
+<form method="post" action="/dedup/scans/{{ scan.id }}/delete-confirm" class="form"
+      onsubmit="return confirm('{{ t(request, "dedup.delete.confirm_prompt") }}')">
+  {% for group_id, paths in selection.items() %}
+    {% for path in paths %}
+      <input type="hidden" name="group_{{ group_id }}" value="{{ path }}">
+    {% endfor %}
+  {% endfor %}
+  {% if plan.requires_bulk_opt_in %}
+    <label class="inline">
+      <input type="checkbox" name="bulk_opt_in" value="true" required>
+      {{ t(request, "dedup.delete.bulk_opt_in_label") }}
+    </label>
+  {% endif %}
+  <label>{{ t(request, "dedup.delete.confirm_label") | safe }}
+    <input type="text" name="confirm" required placeholder="DELETE">
+  </label>
+  <div>
+    <button class="btn danger" type="submit">{{ t(request, "dedup.delete.execute_btn") }}</button>
+    <a href="/dedup/scans/{{ scan.id }}" class="btn">{{ t(request, "btn.back") }}</a>
+  </div>
+</form>
+{% else %}
+<p><a href="/dedup/scans/{{ scan.id }}" class="btn">{{ t(request, "btn.back") }}</a></p>
+{% endif %}
+
+{% endif %}
+{% endblock %}

@@ -35,6 +35,14 @@ DEDUP_DUPLICATES = "duplicates"
 DEDUP_FAILED = "failed"
 DEDUP_CANCELLED = "cancelled"
 
+DELETION_QUARANTINED = "quarantined"
+DELETION_RESTORED = "restored"
+DELETION_PURGED = "purged"
+DELETION_FAILED = "failed"
+
+STORED_MODE_RENAME = "rename"
+STORED_MODE_COPY_UNLINK = "copy_unlink"
+
 
 class Target(Base):
     __tablename__ = "targets"
@@ -228,3 +236,33 @@ class DedupGroup(Base):
     paths_json: Mapped[str] = mapped_column(Text)
 
     scan: Mapped[DedupScan] = relationship(back_populates="groups")
+    deletions: Mapped[list["DedupDeletion"]] = relationship(
+        back_populates="group", cascade="all, delete-orphan",
+    )
+
+
+class DedupDeletion(Base):
+    __tablename__ = "dedup_deletions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    scan_id: Mapped[int] = mapped_column(
+        ForeignKey("dedup_scans.id", ondelete="CASCADE")
+    )
+    group_id: Mapped[int] = mapped_column(
+        ForeignKey("dedup_groups.id", ondelete="CASCADE")
+    )
+    original_path: Mapped[str] = mapped_column(Text)
+    trash_path: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    size: Mapped[int] = mapped_column(Integer)
+    hash_algo: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
+    hash_hex: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    stored_mode: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
+    status: Mapped[str] = mapped_column(String(16), default=DELETION_QUARANTINED)
+    triggered_by: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    deleted_at: Mapped[datetime] = mapped_column(default=utcnow)
+    restored_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
+    purged_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
+    error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    scan: Mapped[DedupScan] = relationship()
+    group: Mapped[DedupGroup] = relationship(back_populates="deletions")

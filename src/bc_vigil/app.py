@@ -20,6 +20,7 @@ from bc_vigil.dedup import scheduler as dedup_scheduler
 from bc_vigil.dedup.routes import scans as dedup_scans_routes
 from bc_vigil.dedup.routes import schedules as dedup_schedules_routes
 from bc_vigil.dedup.routes import targets as dedup_targets_routes
+from bc_vigil.dedup.routes import trash as dedup_trash_routes
 from bc_vigil.integrity import scheduler
 from bc_vigil.integrity.routes import scans as scans_routes
 from bc_vigil.integrity.routes import schedules as schedules_routes
@@ -107,11 +108,28 @@ def _nav_pending_duplicates() -> int:
         return 0
 
 
+def _nav_trash_count() -> int:
+    from sqlalchemy import func, select
+    from bc_vigil import models
+    from bc_vigil.db import SessionLocal
+
+    try:
+        with SessionLocal() as session:
+            return session.scalar(
+                select(func.count()).select_from(models.DedupDeletion).where(
+                    models.DedupDeletion.status == models.DELETION_QUARANTINED,
+                )
+            ) or 0
+    except Exception:
+        return 0
+
+
 templates.env.filters["humanbytes"] = _format_bytes
 templates.env.filters["datetime_utc"] = _format_datetime_utc
 templates.env.filters["localtime"] = _format_local
 templates.env.globals["nav_pending_drift"] = _nav_pending_drift
 templates.env.globals["nav_pending_duplicates"] = _nav_pending_duplicates
+templates.env.globals["nav_trash_count"] = _nav_trash_count
 templates.env.globals["display_tz"] = lambda: settings.display_tz
 templates.env.globals["t"] = i18n.translate
 templates.env.globals["current_lang"] = i18n.current_lang
@@ -144,6 +162,7 @@ def create_app() -> FastAPI:
     app.include_router(dedup_targets_routes.router)
     app.include_router(dedup_schedules_routes.router)
     app.include_router(dedup_scans_routes.router)
+    app.include_router(dedup_trash_routes.router)
     app.include_router(storage_routes.router)
     app.include_router(admin_routes.router)
     app.include_router(help_routes.router)

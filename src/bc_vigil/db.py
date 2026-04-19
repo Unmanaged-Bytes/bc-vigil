@@ -35,6 +35,12 @@ def init_db() -> None:
     settings.data_dir.mkdir(parents=True, exist_ok=True)
     settings.digests_dir.mkdir(parents=True, exist_ok=True)
     settings.dedup_dir.mkdir(parents=True, exist_ok=True)
+    trash_dir = settings.dedup_trash_dir_resolved
+    trash_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        trash_dir.chmod(0o700)
+    except PermissionError:
+        log.warning("could not chmod 0700 on %s", trash_dir)
     models.Base.metadata.create_all(engine)
     _add_missing_columns(models.Base)
 

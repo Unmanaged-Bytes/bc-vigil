@@ -1,3 +1,33 @@
+bc-vigil (0.3.0-1) stable; urgency=medium
+
+  * Dedup quarantine feature: select duplicate files in the scan
+    detail view and move them to a reversible trash with full
+    audit trail instead of deleting them outright.
+  * New table DedupDeletion (scan_id, group_id, original_path,
+    trash_path, size, hash, stored_mode, status, deleted_at,
+    restored_at, purged_at, triggered_by, error).
+  * Safety: re-hash with SHA256 at move-time to catch TOCTOU
+    races; refuse symlinks / hardlinked-to-survivor / size drift
+    / hash mismatch / missing source; minimum one survivor per
+    group enforced; bulk threshold with explicit opt-in.
+  * Storage: rename() atomic when same filesystem, fallback to
+    copy2+fsync+unlink otherwise; warning shown for cross-FS
+    items in the preview.
+  * Restore button moves the file back to its original location
+    (refused if a file now sits there); purge button deletes it
+    for good.
+  * Retention 7 days by default, configurable via
+    BC_VIGIL_DEDUP_TRASH_RETENTION_DAYS; automatic purge job
+    (APScheduler interval 24h). BC_VIGIL_DEDUP_TRASH_DIR to
+    override the default <data_dir>/dedup/trash/ location (useful
+    when duplicates sit on a different filesystem).
+  * New /dedup/trash page with status filter and per-item
+    restore/purge actions; sidebar entry with badge.
+  * admin reset/restore now clear the trash directory when set
+    separately from data_dir.
+
+ -- Younes Benmoussa <younes.benmoussa@pm.me>  Sun, 19 Apr 2026 18:00:00 +0000
+
 bc-vigil (0.2.0-1) stable; urgency=medium
 
   * New dedup/ module: parallel duplicate-file finder backed by

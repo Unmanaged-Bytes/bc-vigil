@@ -22,6 +22,11 @@
       {% set _pduplicates = nav_pending_duplicates() %}
       {% if _pduplicates %}<span class="nav-badge">{{ _pduplicates }}</span>{% endif %}
     </a>
+    <a href="/dedup/trash">
+      {{ t(request, "nav.trash") }}
+      {% set _trash = nav_trash_count() %}
+      {% if _trash %}<span class="nav-badge">{{ _trash }}</span>{% endif %}
+    </a>
     <a href="/storage">{{ t(request, "nav.storage") }}</a>
     <span class="nav-spacer"></span>
     <a href="/admin">{{ t(request, "nav.admin") }}</a>

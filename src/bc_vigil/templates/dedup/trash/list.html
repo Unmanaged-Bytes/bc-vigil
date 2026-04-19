@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}{{ t(request, "dedup.trash.title") }} — {{ t(request, "app.title") }}{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>{{ t(request, "dedup.trash.title") }}</h1>
+</div>
+
+<form method="get" action="/dedup/trash" class="filter-bar">
+  <label>{{ t(request, "col.status") }}
+    <select name="status_filter" onchange="this.form.submit()">
+      <option value="">{{ t(request, "scans.filter.all") }}</option>
+      {% for s in statuses %}
+        <option value="{{ s }}" {% if selected_status == s %}selected{% endif %}>{{ s }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <a href="/dedup/trash" class="btn">{{ t(request, "btn.reset_filters") }}</a>
+</form>
+
+{% if deletions %}
+<table>
+  <thead>
+    <tr>
+      <th>{{ t(request, "col.id") }}</th>
+      <th>{{ t(request, "dedup.trash.col.scan") }}</th>
+      <th>{{ t(request, "dedup.trash.col.original") }}</th>
+      <th>{{ t(request, "dedup.trash.col.size") }}</th>
+      <th>{{ t(request, "dedup.trash.col.mode") }}</th>
+      <th>{{ t(request, "col.status") }}</th>
+      <th>{{ t(request, "dedup.trash.col.deleted_at") }}</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for d in deletions %}
+    <tr>
+      <td>#{{ d.id }}</td>
+      <td><a href="/dedup/scans/{{ d.scan_id }}">#{{ d.scan_id }}</a></td>
+      <td><code>{{ d.original_path }}</code></td>
+      <td>{{ d.size | humanbytes }}</td>
+      <td>{{ d.stored_mode or '—' }}</td>
+      <td><span class="status status-{{ d.status }}">{{ d.status }}</span></td>
+      <td>{{ d.deleted_at | localtime('%Y-%m-%d %H:%M') }}</td>
+      <td>
+        {% if d.status == 'quarantined' %}
+          <form method="post" action="/dedup/trash/{{ d.id }}/restore" style="display:inline"
+                onsubmit="return confirm('{{ t(request, "dedup.trash.confirm.restore") }}')">
+            <button class="btn">{{ t(request, "dedup.trash.btn.restore") }}</button>
+          </form>
+          <form method="post" action="/dedup/trash/{{ d.id }}/purge" style="display:inline"
+                onsubmit="return confirm('{{ t(request, "dedup.trash.confirm.purge") }}')">
+            <button class="btn danger">{{ t(request, "dedup.trash.btn.purge") }}</button>
+          </form>
+        {% endif %}
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="empty">{{ t(request, "dedup.trash.empty") }}</p>
+{% endif %}
+{% endblock %}
