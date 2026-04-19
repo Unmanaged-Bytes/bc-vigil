@@ -59,8 +59,11 @@ def _execute_locked(scan_id: int) -> None:
         includes = bchash.parse_patterns(target.includes)
         excludes = bchash.parse_patterns(target.excludes)
         baseline = target.baseline_scan
+        baseline_has_entries = bool(baseline and baseline.files_total)
         baseline_digest = (
-            Path(baseline.digest_path) if baseline and baseline.digest_path else None
+            Path(baseline.digest_path)
+            if baseline_has_entries and baseline.digest_path
+            else None
         )
 
     digest_file = (
@@ -109,7 +112,7 @@ def _execute_locked(scan_id: int) -> None:
         scan = session.get(models.Scan, scan_id)
         if scan is None:
             return
-        scan.digest_path = str(digest_file)
+        scan.digest_path = str(result.digest_path) if result.digest_path else None
         scan.files_total = result.files_total
         scan.bytes_total = result.bytes_total
         scan.peak_rss_bytes = result.peak_rss_bytes
@@ -133,8 +136,16 @@ def _execute_locked(scan_id: int) -> None:
             ))
 
         target = scan.target
-        if target.baseline_scan_id is None and scan.status in (
-            models.SCAN_OK, models.SCAN_DRIFT
+        current_baseline = target.baseline_scan
+        baseline_usable = bool(
+            current_baseline
+            and current_baseline.digest_path
+            and current_baseline.files_total
+        )
+        if (
+            scan.status in (models.SCAN_OK, models.SCAN_DRIFT)
+            and scan.digest_path is not None
+            and not baseline_usable
         ):
             target.baseline_scan_id = scan.id
 

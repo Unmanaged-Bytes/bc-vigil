@@ -388,7 +388,90 @@ def test_run_hash_handles_empty_target_without_digest_file(tmp_path, monkeypatch
 
     assert result.files_total == 0
     assert result.bytes_total == 0
-    assert digest.exists()
+    assert result.digest_path is None
+    assert not digest.exists()
+
+
+def _empty_target_fake_bchash(tmp_path: Path) -> Path:
+    fake = tmp_path / "fake-bc-hash-empty"
+    fake.write_text(
+        "#!/bin/sh\n"
+        "case \" $* \" in\n"
+        "  *' hash '*) exit 0 ;;\n"
+        "  *' diff '*)\n"
+        "    left=\"\"; seen=0\n"
+        "    for arg in \"$@\"; do\n"
+        "      if [ \"$seen\" = 1 ] && [ -z \"$left\" ]; then left=\"$arg\"; break; fi\n"
+        "      [ \"$arg\" = diff ] && seen=1\n"
+        "    done\n"
+        "    echo \"bc-hash: diff: malformed left digest file '$left'\" >&2\n"
+        "    exit 2 ;;\n"
+        "esac\n"
+        "exit 1\n"
+    )
+    fake.chmod(0o755)
+    return fake
+
+
+def test_two_consecutive_empty_scans_do_not_poison_each_other(tmp_path, monkeypatch):
+    from bc_vigil.config import settings
+    monkeypatch.setattr(
+        settings, "bc_hash_binary", str(_empty_target_fake_bchash(tmp_path))
+    )
+
+    target_id = _make_target(tmp_path, "empty-poison")
+
+    from bc_vigil import models
+    from bc_vigil.integrity import scans
+    from bc_vigil.db import SessionLocal
+
+    first = scans.trigger_scan(target_id)
+    scans.execute_scan(first)
+    second = scans.trigger_scan(target_id)
+    scans.execute_scan(second)
+
+    with SessionLocal() as session:
+        s1 = session.get(models.Scan, first)
+        s2 = session.get(models.Scan, second)
+        assert s1.status == models.SCAN_OK
+        assert s2.status == models.SCAN_OK, s2.error
+        assert s1.digest_path is None
+        assert s2.digest_path is None
+        target = session.get(models.Target, target_id)
+        assert target.baseline_scan_id is None
+
+
+def test_empty_baseline_is_replaced_by_first_real_scan(tmp_path, monkeypatch):
+    target_id = _make_target(tmp_path, "empty-baseline-heal")
+
+    from bc_vigil import models
+    from bc_vigil.integrity import bchash, scans
+    from bc_vigil.db import SessionLocal
+
+    with SessionLocal() as session:
+        empty_scan = models.Scan(
+            target_id=target_id, status=models.SCAN_OK,
+            files_total=0, bytes_total=0, duration_ms=0,
+            digest_path=None,
+        )
+        session.add(empty_scan)
+        session.commit()
+        target = session.get(models.Target, target_id)
+        target.baseline_scan_id = empty_scan.id
+        session.commit()
+        empty_id = empty_scan.id
+
+    monkeypatch.setattr(bchash, "run_hash", _fake_run_hash)
+    new_scan = scans.trigger_scan(target_id)
+    scans.execute_scan(new_scan)
+
+    with SessionLocal() as session:
+        target = session.get(models.Target, target_id)
+        assert target.baseline_scan_id == new_scan
+        scan = session.get(models.Scan, new_scan)
+        assert scan.status == models.SCAN_OK
+        assert scan.error is None
+        assert empty_id != new_scan
 
 
 # -------------------- scheduler.py: paths ----------------------------------

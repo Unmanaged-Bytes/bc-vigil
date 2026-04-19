@@ -58,7 +58,7 @@ class CancelHandle:
 
 @dataclass
 class HashResult:
-    digest_path: Path
+    digest_path: Path | None
     files_total: int
     bytes_total: int
     wall_ms: int
@@ -196,13 +196,14 @@ def run_hash(
         )
 
     if not digest_path.exists():
-        digest_path.write_text(json.dumps({
-            "type": "summary",
-            "files_total": 0,
-            "bytes_total": 0,
-            "wall_ms": 0,
-            "files_error": 0,
-        }) + "\n")
+        return HashResult(
+            digest_path=None,
+            files_total=0,
+            bytes_total=0,
+            wall_ms=0,
+            files_error=0,
+            peak_rss_bytes=peak_rss,
+        )
 
     summary = _read_summary(digest_path)
     return HashResult(
