@@ -15,6 +15,20 @@
 
 <dl class="meta">
   <dt>{{ t(request, "targets.detail.path") }}</dt><dd><code>{{ target.path }}</code></dd>
+  <dt>{{ t(request, "dedup.detail.disk") }}</dt>
+  <dd>
+    {% if disk %}
+      {% if disk.kind == 'hdd' %}<span class="event event-modified">{{ t(request, "dedup.disk.kind.hdd") }}</span>
+      {% elif disk.kind == 'ssd' %}<span class="event event-added">{{ t(request, "dedup.disk.kind.ssd") }}</span>
+      {% elif disk.kind == 'removable' %}<span class="event event-modified">{{ t(request, "dedup.disk.kind.removable") }}</span>
+      {% elif disk.kind == 'network' %}<span class="event event-removed">{{ t(request, "dedup.disk.kind.network") }}</span>
+      {% else %}<span class="event">{{ t(request, "dedup.disk.kind.unknown") }}</span>{% endif %}
+      {% if disk.block_device %}<code>{{ disk.block_device }}</code>{% endif %}
+      {% if disk.fstype %}<small>{{ disk.fstype }}</small>{% endif %}
+    {% else %}
+      <em>{{ t(request, "common.none") }}</em>
+    {% endif %}
+  </dd>
   <dt>{{ t(request, "targets.detail.algo") }}</dt><dd>{{ target.algorithm }}</dd>
   <dt>{{ t(request, "targets.detail.threads") }}</dt><dd>{{ target.threads }}</dd>
   <dt>{{ t(request, "dedup.detail.minimum_size") }}</dt>

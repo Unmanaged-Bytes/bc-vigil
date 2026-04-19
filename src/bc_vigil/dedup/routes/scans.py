@@ -64,7 +64,12 @@ def run_scan(target_id: int, session: Session = Depends(get_session)):
     target = session.get(models.DedupTarget, target_id)
     if target is None:
         raise HTTPException(404)
-    scan_id = scans.trigger_scan(target_id, trigger="manual")
+    try:
+        scan_id = scans.trigger_scan(target_id, trigger="manual")
+    except scans.ScanAlreadyRunningError as exc:
+        return RedirectResponse(
+            f"/dedup/scans/{exc.active_scan_id}", status_code=303,
+        )
     scheduler.run_scan_async(scan_id)
     return RedirectResponse(f"/dedup/scans/{scan_id}", status_code=303)
 

@@ -42,6 +42,13 @@ def _run_scheduled_scan(schedule_id: int) -> None:
 
     try:
         scan_id = scans.trigger_scan(target_id, trigger="scheduled")
+    except scans.ScanAlreadyRunningError:
+        log.info(
+            "skipping scheduled dedup scan for schedule %s: "
+            "another scan is already active",
+            schedule_id,
+        )
+        return
     except Exception:
         log.exception(
             "failed to trigger scheduled dedup scan for schedule %s", schedule_id,

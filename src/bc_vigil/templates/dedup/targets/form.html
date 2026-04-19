@@ -4,6 +4,17 @@
 <h1>{{ t(request, "dedup.targets.new") }}</h1>
 
 {% if error %}<p class="error">{{ error }}</p>{% endif %}
+{% if notices %}
+  {% for n in notices %}
+    <p class="hint"><strong>{{ t(request, "dedup.disk.notice") }} :</strong> {{ n }}</p>
+  {% endfor %}
+{% endif %}
+{% if disk and disk.kind == 'hdd' %}
+  <p class="error">{{ t(request, "dedup.disk.warn_hdd") }}</p>
+{% endif %}
+{% if disk and disk.kind == 'network' %}
+  <p class="error">{{ t(request, "dedup.disk.warn_network") }}</p>
+{% endif %}
 
 <form method="post" action="/dedup/targets" class="form">
   <label>{{ t(request, "targets.form.name") }}
@@ -63,6 +74,20 @@
       <input type="checkbox" name="one_file_system" value="true"
              {% if target and target.one_file_system %}checked{% endif %}>
       {{ t(request, "dedup.form.one_file_system") }}
+    </label>
+  </fieldset>
+
+  <fieldset class="flags">
+    <legend>{{ t(request, "dedup.form.safety") }}</legend>
+    <label class="inline">
+      <input type="checkbox" name="advanced_threads_override" value="true"
+             {% if target and target.advanced_threads_override %}checked{% endif %}>
+      {{ t(request, "dedup.form.advanced_threads_override") }}
+    </label>
+    <label class="inline">
+      <input type="checkbox" name="accept_network_fs" value="true"
+             {% if target and target.accept_network_fs %}checked{% endif %}>
+      {{ t(request, "dedup.form.accept_network_fs") }}
     </label>
   </fieldset>
 

@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from bc_vigil import models
 from bc_vigil.db import get_session
+from bc_vigil.dedup import disk_detect
 
 
 @dataclass
@@ -40,6 +41,8 @@ def new_target_form(request: Request):
             "target": None,
             "algorithms": models.DEDUP_ALGORITHMS,
             "error": None,
+            "disk": None,
+            "notices": [],
         },
     )
 
@@ -58,17 +61,35 @@ def create_target(
     follow_symlinks: bool = Form(False),
     match_hardlinks: bool = Form(False),
     one_file_system: bool = Form(False),
+    advanced_threads_override: bool = Form(False),
+    accept_network_fs: bool = Form(False),
     session: Session = Depends(get_session),
 ):
     error = _validate_basic(name, algorithm, threads)
     resolved: str | None = None
     min_size_value: int | None = None
+    disk: disk_detect.DiskInfo | None = None
+    notices: list[str] = []
     if error is None:
         check = _normalize_path(path)
         if check.error is not None:
             error = check.error
         else:
             resolved = check.normalized
+    if error is None and resolved is not None:
+        disk = disk_detect.detect_disk_info(Path(resolved))
+        if disk.kind == disk_detect.KIND_NETWORK and not accept_network_fs:
+            error = (
+                f"chemin sur système de fichiers réseau "
+                f"({disk.fstype!r}). Cocher la case d'opt-in pour continuer."
+            )
+        elif disk.kind == disk_detect.KIND_HDD and not advanced_threads_override:
+            if threads != "1":
+                notices.append(
+                    f"disque mécanique détecté ({disk.block_device}) — "
+                    f"threads forcé à 1"
+                )
+            threads = "1"
     if error is None:
         min_size_value, min_err = _parse_optional_int(
             minimum_size, 0, "taille minimale",
@@ -93,8 +114,13 @@ def create_target(
                     "follow_symlinks": follow_symlinks,
                     "match_hardlinks": match_hardlinks,
                     "one_file_system": one_file_system,
+                    "advanced_threads_override": advanced_threads_override,
+                    "accept_network_fs": accept_network_fs,
                 },
-                "algorithms": models.DEDUP_ALGORITHMS, "error": error,
+                "algorithms": models.DEDUP_ALGORITHMS,
+                "error": error,
+                "disk": disk,
+                "notices": notices,
             },
             status_code=status.HTTP_400_BAD_REQUEST,
         )
@@ -145,12 +171,14 @@ def show_target(
             "stuck": is_schedule_stuck(sched.cron, last_at) if sched.enabled else False,
         })
 
+    disk = disk_detect.detect_disk_info(Path(target.path))
     return request.app.state.templates.TemplateResponse(
         request, "dedup/targets/detail.html",
         {
             "target": target,
             "scans": target.scans[:20],
             "schedule_stats": schedule_stats,
+            "disk": disk,
         },
     )
 

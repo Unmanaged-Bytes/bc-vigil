@@ -18,11 +18,28 @@ _cancel_handles: dict[int, bcduplicate.CancelHandle] = {}
 _handles_lock = Lock()
 
 
+class ScanAlreadyRunningError(RuntimeError):
+    def __init__(self, scan_id: int):
+        super().__init__(
+            f"another scan is already pending/running for this target: "
+            f"#{scan_id}"
+        )
+        self.active_scan_id = scan_id
+
+
 def trigger_scan(target_id: int, trigger: str = "manual") -> int:
     with session_scope() as session:
         target = session.get(models.DedupTarget, target_id)
         if target is None:
             raise ValueError(f"dedup target {target_id} not found")
+        active = session.query(models.DedupScan).filter(
+            models.DedupScan.target_id == target.id,
+            models.DedupScan.status.in_(
+                [models.DEDUP_PENDING, models.DEDUP_RUNNING]
+            ),
+        ).first()
+        if active is not None:
+            raise ScanAlreadyRunningError(active.id)
         scan = models.DedupScan(
             target_id=target.id,
             trigger=trigger,

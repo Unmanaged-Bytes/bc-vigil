@@ -1,3 +1,24 @@
+bc-vigil (0.4.0-1) stable; urgency=medium
+
+  * HDD/SSD/removable/network detection on dedup target creation
+    via /proc/self/mountinfo and /sys/block/*/queue/rotational.
+  * HDD detected -> threads forced to 1 (2-10x speedup reported
+    vs multi-threaded reads on spinning rust); an advanced
+    override checkbox keeps any user-specified value.
+  * Network filesystem detected (NFS, SMB, SSHFS, 9p, ceph, AFS,
+    gluster, rclone) -> target creation refused unless an opt-in
+    checkbox is ticked, with a prominent warning on degraded
+    performance.
+  * Target detail page now shows the detected storage backend
+    (SSD / HDD / removable / network / unknown) and the block
+    device name.
+  * Scan locking: trigger_scan raises ScanAlreadyRunningError if
+    another PENDING/RUNNING scan exists for the same target.
+    The run_scan route redirects silently to the active scan.
+    Scheduled cron runs are skipped cleanly in that case.
+
+ -- Younes Benmoussa <younes.benmoussa@pm.me>  Sun, 19 Apr 2026 19:00:00 +0000
+
 bc-vigil (0.3.0-1) stable; urgency=medium
 
   * Dedup quarantine feature: select duplicate files in the scan
