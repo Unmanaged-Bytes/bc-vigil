@@ -1,3 +1,14 @@
+bc-vigil (0.5.1-1) stable; urgency=medium
+
+  * Help page (FR and EN) rewritten from scratch. Covers the new
+    dedup module (targets, disk-backend detection, schedules,
+    scans, auto-resolve rules, manual selection, preview, trash,
+    per-target lock), the admin WAL notes and the full environment
+    variable table updated to 0.5.0. Pure documentation update, no
+    runtime change.
+
+ -- Younes Benmoussa <younes.benmoussa@pm.me>  Sun, 19 Apr 2026 20:00:00 +0000
+
 bc-vigil (0.5.0-1) stable; urgency=medium
 
   * SQLite WAL mode enabled unconditionally (journal_mode=WAL,

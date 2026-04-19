@@ -27,7 +27,9 @@ def test_help_page_returns_200(tmp_path):
         r = client.get("/help")
         assert r.status_code == 200
         assert "Prise en main" in r.text
-        assert "Include / Exclude" in r.text
+        assert "Include / exclude" in r.text
+        assert "Doublons" in r.text
+        assert "Corbeille" in r.text
 
 
 def test_admin_page_returns_200(tmp_path):

@@ -6,238 +6,568 @@
 <nav class="help-toc">
   <a href="#intro">Présentation</a>
   <a href="#workflow">Prise en main</a>
-  <a href="#targets">Targets</a>
-  <a href="#patterns">Include / Exclude</a>
+
+  <a href="#integrity"><strong>Intégrité</strong></a>
+  <a href="#targets">Cibles intégrité</a>
+  <a href="#patterns">Include / exclude</a>
   <a href="#baseline">Baseline</a>
   <a href="#schedules">Schedules</a>
-  <a href="#stuck">Schedule "stuck"</a>
-  <a href="#scans">Scans</a>
+  <a href="#stuck">Schedule bloqué</a>
+  <a href="#scans">Scans intégrité</a>
   <a href="#scan-filters">Filtrer / acquitter</a>
   <a href="#export">Export CSV</a>
   <a href="#cancel">Annuler un scan</a>
-  <a href="#retention">Rétention / purge auto</a>
-  <a href="#admin">Administration DB</a>
+  <a href="#retention">Rétention / purge</a>
+
+  <a href="#dedup"><strong>Doublons</strong></a>
+  <a href="#dedup-targets">Cibles doublons</a>
+  <a href="#dedup-disk">Support de stockage</a>
+  <a href="#dedup-schedules">Schedules doublons</a>
+  <a href="#dedup-scans">Analyses doublons</a>
+  <a href="#dedup-auto">Résolution automatique</a>
+  <a href="#dedup-manual">Sélection manuelle</a>
+  <a href="#dedup-preview">Aperçu et confirmation</a>
+  <a href="#dedup-trash">Corbeille</a>
+  <a href="#dedup-lock">Lock par cible</a>
+
+  <a href="#admin"><strong>Administration</strong></a>
+  <a href="#admin-db">Sauvegarde / Restauration / Reset</a>
+  <a href="#admin-wal">Concurrence (WAL)</a>
+  <a href="#storage">Stockage</a>
   <a href="#config">Configuration</a>
+
   <a href="#faq">FAQ</a>
 </nav>
 
 <section id="intro">
 <h2>Présentation</h2>
 <p>
-BitCrafts Vigil est une interface web pour <code>bc-hash</code>. Son objectif : surveiller
-l'intégrité de fichiers sur un serveur en hachant périodiquement des arborescences
-puis en comparant le résultat à une <strong>baseline</strong> de référence.
+BitCrafts Vigil est une interface web autour de deux outils en ligne de
+commande :
 </p>
+<ul>
+  <li><code>bc-hash</code> pour le module <strong>Intégrité</strong> : hache
+    une arborescence et compare à une baseline pour détecter des dérives
+    (ajouts, suppressions, modifications).</li>
+  <li><code>bc-duplicate</code> pour le module <strong>Doublons</strong> :
+    trouve des fichiers identiques, permet de les mettre en quarantaine
+    puis de les restaurer ou de les supprimer définitivement.</li>
+</ul>
 <p>
-Un changement (fichier modifié, ajouté, supprimé) déclenche un événement
-d'intégrité visible dans l'UI. Un badge rouge dans la nav à côté de
-<strong>Scans</strong> indique le nombre de dérives non acquittées.
+Les deux modules partagent la même base de données SQLite, les mêmes
+planificateurs cron, le même système de sauvegarde/restauration et la
+même UI FR/EN. Deux badges dans la barre de navigation comptent les
+alertes non acquittées (dérives d'intégrité et analyses avec doublons).
 </p>
 </section>
 
 <section id="workflow">
 <h2>Prise en main</h2>
 <ol>
-  <li>Créer un <strong>target</strong> (un chemin à surveiller) — onglet Targets</li>
-  <li>Lancer un premier scan manuel — il devient automatiquement la <strong>baseline</strong></li>
-  <li>Ajouter un ou plusieurs <strong>schedules</strong> pour automatiser les scans</li>
-  <li>Consulter les résultats depuis le dashboard ou l'onglet Scans</li>
-  <li>Quand une dérive est détectée : l'analyser, puis soit
-    <strong>acquitter</strong>, soit
-    <strong>promouvoir le scan en baseline</strong></li>
+  <li>Créer une <strong>cible intégrité</strong> et/ou une <strong>cible
+    de recherche de doublons</strong> (section <a href="/targets">Cibles</a>
+    pour l'intégrité, <a href="/dedup/targets">Doublons</a> pour la
+    déduplication).</li>
+  <li>Lancer un premier scan manuel : côté intégrité il devient la
+    <strong>baseline</strong>; côté doublons il produit un rapport avec
+    les groupes de fichiers identiques.</li>
+  <li>Ajouter éventuellement un ou plusieurs <strong>schedules</strong>
+    pour automatiser les scans.</li>
+  <li>Agir sur les résultats : <strong>promouvoir</strong> ou
+    <strong>acquitter</strong> une dérive d'intégrité,
+    <strong>mettre en quarantaine</strong> des doublons.</li>
 </ol>
 </section>
 
+<h2 id="integrity" style="border-top: 2px solid var(--border); padding-top: 1rem;">Module Intégrité</h2>
+
 <section id="targets">
-<h2>Targets</h2>
-<p>Un target représente un chemin à scanner. Champs :</p>
+<h3>Cibles intégrité</h3>
+<p>Une cible intégrité représente un chemin à surveiller.</p>
 <ul>
   <li><strong>Nom</strong> unique</li>
-  <li><strong>Chemin absolu</strong> (un <code>~</code> est résolu contre le home de l'utilisateur système)</li>
+  <li><strong>Chemin absolu</strong> (un <code>~</code> est résolu contre
+    le home système)</li>
   <li><strong>Algorithme</strong> :
-    <code>sha256</code> (robuste, recommandé),
-    <code>xxh128</code> / <code>xxh3</code> (très rapides, non cryptographiques),
-    <code>crc32</code> (léger, pour détecter des corruptions accidentelles seulement)
+    <code>sha256</code> (robuste, recommandé pour détection malveillante),
+    <code>xxh128</code> / <code>xxh3</code> (rapides, non cryptographiques,
+    recommandés pour gros volumes et corruption accidentelle),
+    <code>crc32</code> (léger, collisions plus probables, à réserver aux
+    cas simples)
   </li>
-  <li><strong>Threads</strong> : <code>auto</code>, <code>0</code> (mono-thread), ou un entier</li>
+  <li><strong>Threads</strong> : <code>auto</code>, <code>0</code>
+    (mono-thread) ou un entier</li>
 </ul>
-<p>
-Depuis la fiche d'un target :
-</p>
+<p>Depuis la fiche d'une cible :</p>
 <ul>
-  <li><strong>Dupliquer</strong> — crée une copie (suffixée <em>(copie)</em>) avec tous les
-    paramètres, pratique pour créer des variantes</li>
-  <li><strong>Tout acquitter</strong> — acquitte en un clic toutes les dérives non acquittées du target</li>
-  <li><strong>Supprimer</strong> — efface le target et tous ses scans, schedules, événements</li>
+  <li><strong>Dupliquer</strong> : crée une copie suffixée <em>(copie)</em>.</li>
+  <li><strong>Tout acquitter</strong> : acquitte en un clic toutes les
+    dérives non acquittées.</li>
+  <li><strong>Supprimer</strong> : efface la cible et tous ses scans,
+    schedules et événements.</li>
 </ul>
 </section>
 
 <section id="patterns">
-<h2>Include / Exclude</h2>
+<h3>Include / exclude</h3>
 <p>
-Filtrage passé à <code>bc-hash</code> via <code>--include</code> / <code>--exclude</code>.
-Matching sur <strong>basename uniquement</strong> (pas de chemin préfixe).
+Filtrage passé à <code>bc-hash</code> via <code>--include</code> /
+<code>--exclude</code>. Matching sur <strong>basename uniquement</strong>
+(pas de préfixe de chemin). Un pattern par ligne.
 </p>
-<p>Un pattern par ligne. Exemples fréquents à exclure :</p>
+<p>Exclusions typiques :</p>
 <ul>
-  <li><code>.git</code> — coupe tout le store d'objets d'un dépôt git</li>
+  <li><code>.git</code> — coupe le store d'objets des dépôts git</li>
   <li><code>node_modules</code> — dépendances JS</li>
   <li><code>*.log</code>, <code>*.tmp</code> — fichiers volatiles</li>
   <li><code>__pycache__</code>, <code>.venv</code> — artefacts Python</li>
 </ul>
 <p>
-Exclure un <em>répertoire</em> prune tout son sous-arbre avant descente → gros gain
-de temps et de mémoire sur de gros repos.
+Exclure un <em>répertoire</em> prune tout son sous-arbre avant descente,
+ce qui fait gagner beaucoup de temps et de mémoire sur les gros dépôts.
 </p>
 </section>
 
 <section id="baseline">
-<h2>Baseline</h2>
+<h3>Baseline</h3>
 <ul>
-  <li>Le <strong>premier scan réussi</strong> d'un target devient automatiquement la baseline</li>
-  <li>Tant qu'il n'y a pas de baseline, un scan ne détecte aucune dérive</li>
-  <li>Bouton <strong>Promouvoir baseline</strong> sur la fiche d'un scan (ok ou drift) pour le figer comme nouvelle référence</li>
+  <li>Le premier scan réussi devient automatiquement la baseline.</li>
+  <li>Tant qu'il n'y a pas de baseline, un scan ne détecte aucune dérive.</li>
+  <li>Le bouton <strong>Promouvoir baseline</strong> (fiche d'un scan
+    <code>ok</code> ou <code>drift</code>) fige le scan comme nouvelle
+    référence.</li>
 </ul>
-<p>La baseline courante d'un target est protégée contre la purge automatique.</p>
+<p>La baseline courante d'une cible est protégée contre la purge automatique.</p>
 </section>
 
 <section id="schedules">
-<h2>Schedules</h2>
+<h3>Schedules</h3>
 <p>
 Déclenchement automatique en arrière-plan (APScheduler, fuseau UTC).
-Six modes de configuration :
+Six modes :
 </p>
 <ul>
-  <li><strong>Toutes les X minutes</strong> (1–59)</li>
-  <li><strong>Chaque heure</strong> à une minute donnée</li>
-  <li><strong>Chaque jour</strong> à une heure donnée</li>
-  <li><strong>Chaque semaine</strong> sur une sélection de jours</li>
-  <li><strong>Chaque mois</strong> le Nième jour</li>
-  <li><strong>Expression cron</strong> (5 champs) pour les cas avancés</li>
+  <li>Toutes les X minutes (1–59)</li>
+  <li>Chaque heure à une minute donnée</li>
+  <li>Chaque jour à une heure donnée</li>
+  <li>Chaque semaine sur une sélection de jours</li>
+  <li>Chaque mois le N<sup>e</sup> jour</li>
+  <li>Expression cron à 5 champs pour les cas avancés</li>
 </ul>
 <p>
-L'aperçu affiche les 5 prochaines exécutions en temps réel pendant la saisie.
-Un schedule désactivé reste en base mais n'est pas enregistré auprès du scheduler.
+L'aperçu affiche les 5 prochaines exécutions pendant la saisie. Un
+schedule désactivé reste en base mais n'est pas enregistré auprès du
+scheduler.
 </p>
 </section>
 
 <section id="stuck">
-<h2>Schedule marqué "stuck"</h2>
+<h3>Schedule bloqué</h3>
 <p>
-Sur la fiche d'un target, chaque schedule affiche la date du dernier run réel.
-Si aucun run programmé n'a eu lieu depuis plus de <strong>2x la période</strong>
-(ex : plus de 2 jours pour un schedule quotidien), le schedule est
-étiqueté <span class="event event-removed">stuck</span>.
-</p>
-<p>
-Causes typiques : BitCrafts Vigil était à l'arrêt, le process bc-hash a échoué de manière
-répétée, ou les scans sont restés bloqués en <code>running</code> sans annulation.
-Consulter l'onglet Scans filtré sur ce target pour diagnostiquer.
+Sur la fiche d'une cible, chaque schedule affiche la date du dernier run
+réel. Si aucun run programmé n'a eu lieu depuis plus de
+<strong>deux fois la période</strong> (par exemple, plus de 2 jours pour
+un schedule quotidien), il est étiqueté
+<span class="event event-removed">stuck</span>. Causes typiques :
+service à l'arrêt, échecs successifs du binaire, scans restés en
+<code>running</code> sans annulation.
 </p>
 </section>
 
 <section id="scans">
-<h2>Scans et événements</h2>
+<h3>Scans intégrité et événements</h3>
 <p>Chaque scan passe par ces statuts :</p>
 <ul>
-  <li><span class="status status-pending">pending</span> — en file</li>
-  <li><span class="status status-running">running</span> — bc-hash en cours</li>
+  <li><span class="status status-pending">pending</span> — en file d'attente</li>
+  <li><span class="status status-running">running</span> — exécution en cours</li>
   <li><span class="status status-ok">ok</span> — hashé, aucune dérive</li>
-  <li><span class="status status-drift">drift</span> — dérive détectée par rapport à la baseline</li>
-  <li><span class="status status-failed">failed</span> — erreur (binaire, I/O, etc.)</li>
-  <li><span class="status status-cancelled">cancelled</span> — interrompu par l'utilisateur</li>
+  <li><span class="status status-drift">drift</span> — dérive détectée</li>
+  <li><span class="status status-failed">failed</span> — erreur binaire ou I/O</li>
+  <li><span class="status status-cancelled">cancelled</span> — interrompu</li>
 </ul>
 <p>Types d'événements :</p>
 <ul>
-  <li><span class="event event-added">added</span> — fichier présent maintenant, absent dans la baseline</li>
-  <li><span class="event event-removed">removed</span> — fichier présent dans la baseline, absent maintenant</li>
-  <li><span class="event event-modified">modified</span> — digest différent (contenu changé)</li>
+  <li><span class="event event-added">added</span> — fichier présent maintenant, absent de la baseline</li>
+  <li><span class="event event-removed">removed</span> — présent dans la baseline, absent maintenant</li>
+  <li><span class="event event-modified">modified</span> — digest différent</li>
 </ul>
 <p>
-<strong>Peak RSS</strong> : pic de RSS du process <code>bc-hash</code> pendant l'exécution
-(échantillonnage de <code>/proc/&lt;pid&gt;/status</code> toutes les 50 ms). Utile pour
-dimensionner la machine sur de gros repos.
+<strong>Peak RSS</strong> : pic de mémoire résidente du process
+<code>bc-hash</code> pendant le scan. Échantillonné via
+<code>/proc/&lt;pid&gt;/status</code>.
 </p>
 </section>
 
 <section id="scan-filters">
-<h2>Filtrer et acquitter en masse</h2>
+<h3>Filtrer et acquitter en masse</h3>
 <p>L'onglet <a href="/scans">Scans</a> propose :</p>
 <ul>
-  <li>Filtres par <strong>statut</strong> et par <strong>target</strong></li>
-  <li>Actualisation automatique toutes les 3 secondes lorsqu'un scan est en cours</li>
-  <li>Bouton <strong>Tout acquitter</strong> : acquitte toutes les dérives non acquittées (option par-target depuis la fiche du target)</li>
+  <li>Filtres par statut et par cible.</li>
+  <li>Actualisation automatique toutes les 3 secondes lorsqu'un scan est
+    en cours.</li>
+  <li>Bouton <strong>Tout acquitter</strong>, global ou par cible.</li>
 </ul>
 <p>
-<strong>Acquitter</strong> marque la dérive comme "vue" — la baseline reste intacte,
-donc un futur scan retrouvera la même dérive. <strong>Promouvoir</strong> change la baseline.
+<strong>Acquitter</strong> marque la dérive comme vue sans toucher à la
+baseline : un futur scan retrouvera la même dérive.
+<strong>Promouvoir</strong> adopte le scan comme nouvelle référence, la
+dérive disparaît pour les scans suivants.
 </p>
 </section>
 
 <section id="export">
-<h2>Export CSV</h2>
+<h3>Export CSV</h3>
 <p>
-Sur la fiche d'un scan avec dérive, bouton <strong>Export CSV</strong> →
-<code>scan-&lt;id&gt;-events.csv</code> contenant :
+Sur la fiche d'un scan avec dérive, le bouton <strong>Export CSV</strong>
+télécharge <code>scan-&lt;id&gt;-events.csv</code> au format :
 </p>
 <pre><code>scan_id,target,event_type,path,old_digest,new_digest</code></pre>
-<p>Utile pour analyse dans un tableur ou intégration dans un SIEM externe.</p>
 </section>
 
 <section id="cancel">
-<h2>Annuler un scan</h2>
-<p>Sur la fiche d'un scan en cours :</p>
+<h3>Annuler un scan</h3>
 <ul>
-  <li><strong>Annuler</strong> — SIGTERM, scan marqué <code>cancelled</code>, digest partiel supprimé</li>
-  <li><strong>Forcer l'arrêt</strong> — SIGKILL (pour les cas où SIGTERM ne suffit pas)</li>
+  <li><strong>Annuler</strong> : SIGTERM, scan marqué
+    <code>cancelled</code>, digest partiel supprimé.</li>
+  <li><strong>Forcer l'arrêt</strong> : SIGKILL, pour les cas où SIGTERM
+    ne suffit pas.</li>
 </ul>
 </section>
 
 <section id="retention">
-<h2>Rétention / purge automatique</h2>
-<p>
-Variable d'environnement <code>BC_VIGIL_SCAN_RETENTION_DAYS</code> :
-</p>
+<h3>Rétention / purge automatique</h3>
+<p>Variable <code>BC_VIGIL_SCAN_RETENTION_DAYS</code> :</p>
 <ul>
-  <li><code>0</code> (défaut) — aucune purge, tout est conservé</li>
-  <li><code>N &gt; 0</code> — un job tourne toutes les 24 h et supprime les scans terminés
-    (et leurs digests) dont <code>started_at</code> est antérieur à <code>now - N jours</code></li>
+  <li><code>0</code> (défaut) — aucune purge.</li>
+  <li><code>N &gt; 0</code> — un job tourne toutes les 24 h et supprime
+    les scans terminés (et leurs digests) plus vieux que
+    <code>now - N</code> jours.</li>
 </ul>
 <p>
-La baseline courante d'un target et les scans non terminés
-(<code>pending</code> / <code>running</code>) sont toujours protégés.
+La baseline courante et les scans non terminés sont toujours protégés.
 </p>
 </section>
 
-<section id="admin">
-<h2>Administration DB</h2>
-<p>Onglet <a href="/admin">Admin</a>. Trois actions :</p>
+<h2 id="dedup" style="border-top: 2px solid var(--border); padding-top: 1rem;">Module Doublons</h2>
+
+<section id="dedup-overview">
+<h3>Vue d'ensemble</h3>
+<p>
+Ce module délègue la découverte de fichiers identiques à
+<code>bc-duplicate</code>. Il hache en plusieurs phases (filtre par taille,
+hash de prefixe/suffixe rapide, hash complet sur les candidats) puis
+retourne un rapport JSON.
+</p>
+<p>
+BitCrafts Vigil parse ce rapport, persiste les groupes en base et offre
+deux chemins pour agir :
+</p>
 <ul>
-  <li><strong>Backup</strong> — téléchargement d'un <code>.tar.gz</code> (DB + digests).
-    Peut être pris à chaud.</li>
-  <li><strong>Restaurer</strong> — upload d'un backup : remplace DB et digests.
-    Snapshot automatique pris avant.</li>
-  <li><strong>Réinitialiser</strong> — efface targets, schedules, scans et digests.
-    Snapshot automatique pris avant.</li>
+  <li><strong>Sélection manuelle</strong> : cocher les fichiers à
+    quarantainer, groupe par groupe.</li>
+  <li><strong>Résolution automatique</strong> : appliquer une règle de
+    conservation à tout le scan en une action.</li>
 </ul>
 <p>
-Bloqué si des scans sont <code>pending</code> ou <code>running</code>. Le scheduler
-est arrêté pendant l'opération puis redémarré.
+La suppression n'est <strong>jamais</strong> immédiate : les fichiers
+sélectionnés sont d'abord déplacés dans une <a href="#dedup-trash">corbeille</a>
+puis purgés après une période de rétention configurable.
+</p>
+</section>
+
+<section id="dedup-targets">
+<h3>Cibles de recherche de doublons</h3>
+<ul>
+  <li><strong>Nom</strong> unique et <strong>chemin absolu</strong>.</li>
+  <li><strong>Algorithme</strong> :
+    <code>xxh3</code> (défaut, rapide),
+    <code>xxh128</code> (plus large, très rapide),
+    <code>sha256</code> (cryptographique, plus lent mais immunisé aux
+    collisions adverses).</li>
+  <li><strong>Taille minimale</strong> : ignore les fichiers plus petits
+    (pratique pour éviter le bruit des tout petits fichiers).</li>
+  <li><strong>Inclure / exclure</strong> : mêmes conventions que pour
+    l'intégrité (matching basename).</li>
+  <li><strong>Options</strong> : inclure fichiers cachés, suivre les
+    liens symboliques, considérer les liens physiques comme doublons,
+    ne pas traverser les points de montage.</li>
+</ul>
+</section>
+
+<section id="dedup-disk">
+<h3>Support de stockage</h3>
+<p>
+À la création d'une cible, BitCrafts Vigil résout le chemin vers son
+point de montage via <code>/proc/self/mountinfo</code>, lit
+<code>/sys/block/&lt;device&gt;/queue/rotational</code> puis classe le
+support dans l'une des catégories :
+</p>
+<ul>
+  <li><strong>SSD</strong> : aucune contrainte, <code>threads=auto</code>
+    par défaut.</li>
+  <li><strong>HDD (disque mécanique)</strong> : <code>threads</code> est
+    <strong>forcé à 1</strong>, car des lectures multi-thread sur un disque
+    mécanique peuvent être 2 à 10 fois plus lentes que du mono-thread.
+    La case <em>« Forcer la valeur de threads »</em> permet tout de même
+    de conserver la valeur saisie pour les cas particuliers (très gros
+    cache RAM, SSD en cache, etc.).</li>
+  <li><strong>Amovible</strong> (clé USB, etc.) : rien de spécial, juste
+    un étiquetage dans la fiche.</li>
+  <li><strong>Système de fichiers réseau</strong> (NFS, SMB/CIFS, SSHFS,
+    9p, Ceph, AFS, GlusterFS, rclone via FUSE) : la création est
+    <strong>refusée</strong> sauf si la case
+    <em>« J'accepte le système de fichiers réseau »</em> est cochée. La
+    performance n'est pas garantie sur les FS réseau — l'opt-in est un
+    rappel explicite.</li>
+  <li><strong>Inconnu</strong> : aucune contrainte, juste affiché pour
+    information.</li>
+</ul>
+<p>
+Le support détecté est affiché sur la fiche de chaque cible, avec le
+nom du block device (<code>nvme0n1</code>, <code>sda</code>, etc.).
+</p>
+</section>
+
+<section id="dedup-schedules">
+<h3>Schedules doublons</h3>
+<p>
+Les schedules du module doublons fonctionnent exactement comme ceux de
+l'intégrité (mêmes modes, même UI, même fuseau UTC). Un schedule
+planifié qui démarre alors qu'un scan est déjà actif pour la même
+cible est simplement ignoré (voir <a href="#dedup-lock">Lock par cible</a>).
+</p>
+</section>
+
+<section id="dedup-scans">
+<h3>Analyses doublons</h3>
+<p>
+Chaque scan doublons passe par ces statuts :
+</p>
+<ul>
+  <li><span class="status status-pending">pending</span> — en file d'attente</li>
+  <li><span class="status status-running">running</span> — exécution en cours</li>
+  <li><span class="status status-ok">ok</span> — aucun doublon trouvé</li>
+  <li><span class="status status-duplicates">duplicates</span> — doublons trouvés</li>
+  <li><span class="status status-failed">failed</span> — erreur</li>
+  <li><span class="status status-cancelled">cancelled</span> — interrompu</li>
+</ul>
+<p>
+<strong>Acquitter</strong> un scan <code>duplicates</code> ne touche
+aucun fichier : c'est uniquement un marqueur visuel (le badge
+<em>Analyses doublons</em> dans la barre de navigation disparaît pour ce
+scan). Utile après avoir traité les doublons ou pour accepter que le
+doublon est légitime.
+</p>
+<p>
+La page de détail d'un scan est <strong>paginée</strong> à
+20 groupes par page, triés par taille décroissante par défaut (on cible
+les plus gros gaspillages en premier). Filtre de tri, navigation entre
+pages. Au-delà de 10 000 groupes, un bandeau recommande explicitement la
+<a href="#dedup-auto">résolution automatique</a> plutôt que le clic à clic.
+</p>
+</section>
+
+<section id="dedup-auto">
+<h3>Résolution automatique</h3>
+<p>
+Quatre règles de conservation. Chacune garde un survivant par groupe et
+propose de quarantainer le reste :
+</p>
+<ul>
+  <li><strong>Chemin le plus court</strong> : survivant = chemin
+    lexicographiquement le plus court (utile quand les copies sont plus
+    profondes dans l'arborescence que l'original).</li>
+  <li><strong>Plus ancien (mtime)</strong> : survivant = fichier avec la
+    date de modification la plus ancienne.</li>
+  <li><strong>Plus récent (mtime)</strong> : survivant = fichier avec la
+    date de modification la plus récente.</li>
+  <li><strong>Dossier prioritaire</strong> : survivant = fichier situé
+    sous le préfixe indiqué (champ <em>Dossier prioritaire</em>). Si un
+    groupe n'a aucun fichier sous ce préfixe, il est ignoré par la
+    règle.</li>
+</ul>
+<p>
+La règle s'applique à <strong>tous les groupes du scan</strong>, pas
+seulement la page visible. Le résultat ouvre la page d'aperçu que vous
+devez confirmer avec <code>DELETE</code> — rien n'est déplacé tant
+que vous n'avez pas confirmé.
+</p>
+</section>
+
+<section id="dedup-manual">
+<h3>Sélection manuelle</h3>
+<p>
+Sur la page de détail d'un scan, chaque groupe liste ses fichiers avec
+une case à cocher. Trois raccourcis pour éviter le clic à clic :
+</p>
+<ul>
+  <li>Bouton <strong>tout sauf le premier</strong> sur un groupe
+    particulier (coche tous les fichiers sauf le premier du groupe).</li>
+  <li>Bouton <strong>Cocher tout sauf le premier (page affichée)</strong>
+    en haut du formulaire (toute la page courante).</li>
+  <li>Bouton <strong>Tout décocher</strong>.</li>
+</ul>
+<p>
+La règle de sûreté : il doit rester au moins un survivant par groupe.
+Toute tentative de cocher tous les fichiers d'un groupe est rejetée
+dans l'aperçu.
+</p>
+</section>
+
+<section id="dedup-preview">
+<h3>Aperçu et confirmation</h3>
+<p>
+L'aperçu montre avant toute action :
+</p>
+<ul>
+  <li>Nombre de fichiers à déplacer, taille totale, destination.</li>
+  <li>Fichiers ignorés (avec la raison : disparu, devenu lien, taille
+    modifiée, hash différent du survivant, survivant absent, etc.).</li>
+  <li>Avertissement cross-FS si certains fichiers ne sont pas sur le
+    même système de fichiers que la corbeille (mode
+    <code>copy_unlink</code> plus lent que <code>rename</code>).</li>
+  <li>Avertissement <em>seuil bulk</em> si la sélection dépasse
+    <code>BC_VIGIL_DEDUP_DELETION_BULK_THRESHOLD</code> (500 par
+    défaut) : une case <em>« Je confirme »</em> doit être cochée.</li>
+</ul>
+<p>
+La confirmation exige de taper <code>DELETE</code> dans le champ dédié.
+À ce moment :
+</p>
+<ol>
+  <li>Un contrôle SHA-256 de TOCTOU est refait au moment du déplacement
+    pour rejeter les fichiers modifiés depuis l'aperçu.</li>
+  <li>Les fichiers sont déplacés (<code>rename</code> atomique si
+    possible, sinon <code>copy2 + fsync + unlink</code>).</li>
+  <li>Une entrée <code>DedupDeletion</code> est créée en base avec
+    l'origine, la destination dans la corbeille, le hash et l'auteur.</li>
+</ol>
+</section>
+
+<section id="dedup-trash">
+<h3>Corbeille</h3>
+<p>
+Les fichiers mis en quarantaine vivent sous le chemin défini par
+<code>BC_VIGIL_DEDUP_TRASH_DIR</code> (par défaut
+<code>&lt;data_dir&gt;/dedup/trash/</code>, mode <code>0700</code>, propriétaire
+<code>bc-vigil</code>). Chaque élément est rangé dans
+<code>scan-&lt;id&gt;/group-&lt;id&gt;/&lt;uuid&gt;/</code> avec un
+<code>meta.json</code> à côté qui décrit l'origine exacte.
+</p>
+<p>
+La page <a href="/dedup/trash">Corbeille</a> liste tous les éléments en
+quarantaine avec leur statut :
+</p>
+<ul>
+  <li><span class="status status-quarantined">quarantined</span> — en
+    attente, restaurable.</li>
+  <li><span class="status status-restored">restored</span> — restauré à
+    son emplacement d'origine.</li>
+  <li><span class="status status-purged">purged</span> — supprimé
+    définitivement.</li>
+  <li><span class="status status-failed">failed</span> — une étape a
+    échoué (audit trail conservé).</li>
+</ul>
+<p>Deux actions disponibles sur un élément en quarantaine :</p>
+<ul>
+  <li><strong>Restaurer</strong> : ramène le fichier à son chemin
+    d'origine. Refusé si un autre fichier a pris la place entre-temps.</li>
+  <li><strong>Purger</strong> : suppression immédiate et irréversible.</li>
+</ul>
+<p>
+Un job APScheduler tourne toutes les 24 h et purge automatiquement les
+éléments plus anciens que
+<code>BC_VIGIL_DEDUP_TRASH_RETENTION_DAYS</code> (7 jours par défaut).
+Mettre à <code>0</code> désactive la purge automatique.
+</p>
+</section>
+
+<section id="dedup-lock">
+<h3>Lock par cible</h3>
+<p>
+Un seul scan peut être actif (<code>pending</code> ou <code>running</code>)
+par cible à la fois. Un nouveau déclenchement manuel redirige
+silencieusement vers le scan actif ; un schedule qui essaie de partir
+alors qu'un scan est déjà en cours est <strong>ignoré</strong> (une
+ligne de log le signale).
+</p>
+<p>
+Le verrou est porté en base de données : il survit au redémarrage du
+service. Si un scan reste bloqué en <code>running</code> à la suite d'un
+crash, utilisez <strong>Forcer l'arrêt</strong> sur la fiche du scan
+pour le libérer.
+</p>
+</section>
+
+<h2 id="admin" style="border-top: 2px solid var(--border); padding-top: 1rem;">Administration</h2>
+
+<section id="admin-db">
+<h3>Sauvegarde / Restauration / Réinitialisation</h3>
+<p>Onglet <a href="/admin">Admin</a>. Trois actions :</p>
+<ul>
+  <li><strong>Sauvegarde</strong> : télécharge un <code>.tar.gz</code>
+    contenant la DB SQLite, les digests d'intégrité et les rapports JSON
+    des scans doublons. Un <code>PRAGMA wal_checkpoint(TRUNCATE)</code>
+    est forcé avant l'archivage pour garantir que le fichier DB est
+    complet.</li>
+  <li><strong>Restauration</strong> : upload d'une archive précédemment
+    produite. Remplace DB + digests + répertoire doublons + corbeille.
+    Un snapshot automatique de l'état courant est pris avant.</li>
+  <li><strong>Réinitialisation</strong> : efface toute la base et tous
+    les fichiers liés (digests, rapports doublons, corbeille). Un
+    snapshot automatique est également pris avant.</li>
+</ul>
+<p>
+Les deux dernières opérations sont <strong>bloquées</strong> tant qu'un
+scan intégrité ou doublons est encore <code>pending</code> ou
+<code>running</code>. Les schedulers sont arrêtés le temps de
+l'opération puis redémarrés automatiquement.
+</p>
+</section>
+
+<section id="admin-wal">
+<h3>Concurrence (WAL)</h3>
+<p>
+La base SQLite est ouverte en mode <code>journal_mode=WAL</code>,
+<code>synchronous=NORMAL</code>, <code>busy_timeout=5000</code>. Cela
+permet aux lectures de l'UI de rester rapides pendant les écritures
+lourdes (persistance des groupes à la fin d'un gros scan).
+</p>
+<p>
+Les fichiers <code>bc-vigil.sqlite-wal</code> et
+<code>bc-vigil.sqlite-shm</code> sont créés automatiquement par SQLite —
+c'est normal et attendu en mode WAL. Le backup appelle un checkpoint
+explicite pour que l'archive ne contienne que le fichier principal.
+</p>
+</section>
+
+<section id="storage">
+<h3>Stockage (module)</h3>
+<p>
+L'onglet <a href="/storage">Stockage</a> présente l'utilisation disque
+par point de montage : total, utilisé, libre, type de FS. C'est
+purement informatif, aucun impact sur les scans.
 </p>
 </section>
 
 <section id="config">
-<h2>Configuration (variables d'environnement)</h2>
+<h3>Configuration (variables d'environnement)</h3>
 <table>
   <thead><tr><th>Variable</th><th>Défaut</th><th>Rôle</th></tr></thead>
   <tbody>
     <tr><td><code>BC_VIGIL_HOST</code></td><td><code>127.0.0.1</code></td><td>adresse d'écoute</td></tr>
     <tr><td><code>BC_VIGIL_PORT</code></td><td><code>8080</code></td><td>port d'écoute</td></tr>
-    <tr><td><code>BC_VIGIL_DATA_DIR</code></td><td><code>./var</code></td><td>DB SQLite + digests</td></tr>
-    <tr><td><code>BC_VIGIL_BC_HASH_BINARY</code></td><td><code>bc-hash</code></td><td>chemin du binaire</td></tr>
-    <tr><td><code>BC_VIGIL_DISPLAY_TZ</code></td><td><code>UTC</code></td><td>fuseau d'affichage (ex: <code>Europe/Paris</code>) — les données restent UTC en base, seule la présentation change</td></tr>
-    <tr><td><code>BC_VIGIL_MAX_PARALLEL_SCANS</code></td><td><code>2</code></td><td>scans concurrents max</td></tr>
-    <tr><td><code>BC_VIGIL_SCAN_RETENTION_DAYS</code></td><td><code>0</code></td><td>rétention — voir section Purge</td></tr>
+    <tr><td><code>BC_VIGIL_DATA_DIR</code></td><td><code>./var</code> (paquet : <code>/var/lib/bc-vigil</code>)</td><td>dossier racine (DB, digests, doublons, corbeille par défaut)</td></tr>
+    <tr><td><code>BC_VIGIL_BC_HASH_BINARY</code></td><td><code>bc-hash</code></td><td>chemin du binaire pour l'intégrité</td></tr>
+    <tr><td><code>BC_VIGIL_BC_DUPLICATE_BINARY</code></td><td><code>bc-duplicate</code></td><td>chemin du binaire pour la déduplication</td></tr>
+    <tr><td><code>BC_VIGIL_DEFAULT_ALGORITHM</code></td><td><code>sha256</code></td><td>algorithme par défaut pour les nouvelles cibles intégrité</td></tr>
+    <tr><td><code>BC_VIGIL_DEFAULT_THREADS</code></td><td><code>auto</code></td><td>valeur <em>threads</em> par défaut (avant détection HDD)</td></tr>
+    <tr><td><code>BC_VIGIL_MAX_PARALLEL_SCANS</code></td><td><code>2</code></td><td>scans concurrents maxi (partagé intégrité + doublons)</td></tr>
+    <tr><td><code>BC_VIGIL_DISPLAY_TZ</code></td><td><code>UTC</code></td><td>fuseau d'affichage (les données restent UTC en base)</td></tr>
+    <tr><td><code>BC_VIGIL_SCAN_RETENTION_DAYS</code></td><td><code>0</code></td><td>rétention des scans intégrité et doublons terminés (jours)</td></tr>
+    <tr><td><code>BC_VIGIL_DEDUP_TRASH_DIR</code></td><td>vide</td><td>chemin de la corbeille ; vide = <code>&lt;data_dir&gt;/dedup/trash</code></td></tr>
+    <tr><td><code>BC_VIGIL_DEDUP_TRASH_RETENTION_DAYS</code></td><td><code>7</code></td><td>rétention de la corbeille avant purge automatique (jours)</td></tr>
+    <tr><td><code>BC_VIGIL_DEDUP_DELETION_BULK_THRESHOLD</code></td><td><code>500</code></td><td>au-delà, une case d'opt-in supplémentaire est exigée à la confirmation</td></tr>
   </tbody>
 </table>
 <p class="hint">Fuseau courant : <code>{{ display_tz() }}</code></p>
@@ -246,37 +576,65 @@ est arrêté pendant l'opération puis redémarré.
 <section id="faq">
 <h2>FAQ</h2>
 <dl class="faq">
-  <dt>Pourquoi mon premier scan n'affiche aucune dérive ?</dt>
-  <dd>C'est le comportement attendu : le premier scan devient la baseline, il n'y a
-    rien à quoi le comparer.</dd>
+  <dt>Pourquoi mon premier scan d'intégrité n'affiche aucune dérive ?</dt>
+  <dd>Attendu : le premier scan devient la baseline, il n'y a rien à
+    comparer.</dd>
 
-  <dt>Peut-on surveiller un fichier unique (pas un dossier) ?</dt>
-  <dd>Oui — le chemin du target peut être un fichier ou un répertoire.</dd>
+  <dt>Quelle différence entre acquitter et promouvoir une baseline ?</dt>
+  <dd><strong>Acquitter</strong> marque la dérive comme vue sans toucher
+    à la baseline ; un futur scan retrouvera la même dérive.
+    <strong>Promouvoir</strong> adopte le scan comme nouvelle référence :
+    la dérive disparaît pour les scans suivants.</dd>
 
-  <dt>Quelle différence entre acquitter et promouvoir baseline ?</dt>
-  <dd><strong>Acquitter</strong> : marque la dérive comme "vue". La baseline reste
-    intacte, donc un futur scan retrouvera la même dérive.
-    <strong>Promouvoir</strong> : adopte le scan courant comme nouvelle référence,
-    la dérive disparaît du point de vue des scans suivants.</dd>
+  <dt>Acquitter un scan doublons supprime-t-il des fichiers ?</dt>
+  <dd>Non. Acquitter est uniquement un marqueur visuel qui vide le badge
+    de la barre de navigation. Pour libérer de la place il faut passer
+    par la <strong>mise en quarantaine</strong> puis la
+    <strong>purge</strong> (manuelle ou automatique).</dd>
 
-  <dt>Comment supprimer les vieux scans ?</dt>
-  <dd>Soit activer <code>BC_VIGIL_SCAN_RETENTION_DAYS</code> pour purge automatique,
-    soit supprimer un target (cascade tous ses scans), soit reset DB complet.</dd>
+  <dt>Pourquoi <em>threads</em> est forcé à 1 sur ma cible ?</dt>
+  <dd>BitCrafts Vigil a détecté un disque mécanique (HDD) via
+    <code>/sys/block/&lt;dev&gt;/queue/rotational</code>. Sur HDD, lire
+    plusieurs fichiers en parallèle produit du thrashing de têtes et
+    peut être 2 à 10 fois plus lent que mono-thread. Cochez
+    <em>« Forcer la valeur de threads »</em> à la création si vous
+    voulez tout de même imposer une valeur.</dd>
 
-  <dt>Quel algorithme choisir ?</dt>
-  <dd>Pour la détection de modifications malveillantes : <code>sha256</code>.
-    Pour la détection de corruption accidentelle sur gros volumes : <code>xxh128</code>
-    (beaucoup plus rapide). <code>crc32</code> : uniquement pour des cas légers,
-    collisions plus probables.</dd>
+  <dt>Pourquoi la création de cible a été refusée sur mon NFS ?</dt>
+  <dd>Les systèmes de fichiers réseau (NFS, SMB, SSHFS, 9p, Ceph, AFS,
+    GlusterFS, rclone) ne sont pas garantis en performance. Cocher
+    <em>« J'accepte le système de fichiers réseau »</em> lève le refus.</dd>
 
-  <dt>Un schedule affiche "stuck", que faire ?</dt>
-  <dd>Vérifier que BitCrafts Vigil tourne sans interruption, regarder les scans récents du target
-    pour voir s'il y a des échecs successifs ou des scans bloqués. Un redémarrage
-    réinitialisera les jobs.</dd>
+  <dt>J'ai lancé un scan mais rien ne se passe — il y a déjà un scan en cours.</dt>
+  <dd>Le lock par cible bloque un second scan simultané. Le lien de la
+    redirection vous amène directement au scan actif. Pour libérer un
+    scan coincé : <em>Forcer l'arrêt</em> depuis sa page de détail.</dd>
 
-  <dt>Peut-on consommer les événements d'un scan depuis un script ?</dt>
-  <dd>Oui, <code>GET /scans/&lt;id&gt;/events.csv</code> retourne un CSV
-    (Content-Type <code>text/csv</code>), utilisable en curl + jq/csvkit ou dans un SIEM.</dd>
+  <dt>Peut-on annuler une mise en quarantaine ?</dt>
+  <dd>Oui, tant que le fichier n'est pas purgé : bouton
+    <strong>Restaurer</strong> depuis <a href="/dedup/trash">la corbeille</a>.
+    La restauration échoue si un autre fichier a pris la place entre-temps.</dd>
+
+  <dt>La corbeille remplit <code>/var/lib</code>, que faire ?</dt>
+  <dd>Pointer <code>BC_VIGIL_DEDUP_TRASH_DIR</code> vers un disque plus
+    grand (même FS que les cibles scannées, idéalement, pour rester en
+    <code>rename</code> atomique).</dd>
+
+  <dt>Un scan semble plus lent via l'UI qu'en ligne de commande.</dt>
+  <dd>L'UI ajoute le parsing du rapport JSON et la persistance des
+    groupes en base. Le surcoût est proportionnel au nombre de groupes.
+    Depuis la 0.5.0 la persistance est faite par lots pour garder l'UI
+    réactive pendant la fin du scan.</dd>
+
+  <dt>Comment consommer les groupes d'un scan depuis un script ?</dt>
+  <dd><code>GET /dedup/scans/&lt;id&gt;/groups.csv</code> retourne un
+    CSV (<code>scan_id,target,group_id,size,path</code>) utilisable en
+    curl + jq/csvkit.</dd>
+
+  <dt>Un schedule est étiqueté "stuck", que faire ?</dt>
+  <dd>Vérifier que BitCrafts Vigil tourne sans interruption, regarder
+    les scans récents de la cible pour identifier des échecs ou des
+    scans bloqués. Un redémarrage du service réinitialise les jobs.</dd>
 </dl>
 </section>
 {% endblock %}
