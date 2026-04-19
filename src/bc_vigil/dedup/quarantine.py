@@ -27,6 +27,89 @@ class BulkThresholdExceeded(QuarantineError):
     pass
 
 
+AUTO_RULE_SHORTEST_PATH = "shortest_path"
+AUTO_RULE_OLDEST_MTIME = "oldest_mtime"
+AUTO_RULE_NEWEST_MTIME = "newest_mtime"
+AUTO_RULE_PRIORITY_FOLDER = "priority_folder"
+
+AUTO_RULES = (
+    AUTO_RULE_SHORTEST_PATH,
+    AUTO_RULE_OLDEST_MTIME,
+    AUTO_RULE_NEWEST_MTIME,
+    AUTO_RULE_PRIORITY_FOLDER,
+)
+
+
+def build_auto_selection(
+    scan_id: int,
+    rule: str,
+    priority_path: str | None = None,
+) -> dict[int, list[str]]:
+    """
+    For each group of a scan, apply the rule to pick a survivor and return
+    the list of other paths to quarantine. Returns a mapping
+    group_id -> [paths_to_delete].
+    """
+    if rule not in AUTO_RULES:
+        raise QuarantineError(f"unknown auto rule: {rule!r}")
+    if rule == AUTO_RULE_PRIORITY_FOLDER and not priority_path:
+        raise QuarantineError("priority_path is required for priority_folder")
+
+    selection: dict[int, list[str]] = {}
+    with session_scope() as session:
+        scan = session.get(models.DedupScan, scan_id)
+        if scan is None:
+            raise QuarantineError(f"scan {scan_id} not found")
+        if scan.status != models.DEDUP_DUPLICATES:
+            raise QuarantineError(
+                f"scan {scan_id} status is {scan.status}, not duplicates"
+            )
+
+        for group in scan.groups:
+            paths = dedup_scans.parse_group_paths(group.paths_json)
+            if len(paths) < 2:
+                continue
+            survivor = _pick_survivor(paths, rule, priority_path)
+            if survivor is None:
+                continue
+            victims = [p for p in paths if p != survivor]
+            if victims:
+                selection[group.id] = victims
+    return selection
+
+
+def _pick_survivor(
+    paths: list[str], rule: str, priority_path: str | None,
+) -> str | None:
+    if rule == AUTO_RULE_SHORTEST_PATH:
+        return min(paths, key=lambda p: (len(p), p))
+    if rule == AUTO_RULE_OLDEST_MTIME:
+        return _pick_by_mtime(paths, newest=False)
+    if rule == AUTO_RULE_NEWEST_MTIME:
+        return _pick_by_mtime(paths, newest=True)
+    assert rule == AUTO_RULE_PRIORITY_FOLDER
+    assert priority_path is not None
+    pref = priority_path.rstrip("/") + "/"
+    under = [p for p in paths if p.startswith(pref)]
+    if under:
+        return min(under, key=lambda p: (len(p), p))
+    return None
+
+
+def _pick_by_mtime(paths: list[str], newest: bool) -> str | None:
+    scored: list[tuple[float, str]] = []
+    for p in paths:
+        try:
+            mtime = Path(p).stat().st_mtime
+        except OSError:
+            continue
+        scored.append((mtime, p))
+    if not scored:
+        return None
+    scored.sort(reverse=newest)
+    return scored[0][1]
+
+
 @dataclass
 class PlannedItem:
     group_id: int

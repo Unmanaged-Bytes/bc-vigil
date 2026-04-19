@@ -57,7 +57,7 @@ class CancelHandle:
 
 
 class _RssSampler:
-    def __init__(self, pid: int, interval: float = 0.05) -> None:
+    def __init__(self, pid: int, interval: float = 0.2) -> None:
         self._pid = pid
         self._interval = interval
         self._peak_kb = 0

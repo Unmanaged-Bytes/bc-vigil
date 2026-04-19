@@ -5,7 +5,7 @@ import io
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from bc_vigil import models
@@ -95,13 +95,29 @@ def acknowledge_all(
     return RedirectResponse(redirect, status_code=303)
 
 
+_DEFAULT_PER_PAGE = 20
+_LARGE_SCAN_THRESHOLD = 10_000
+
+
 @router.get("/{scan_id}", response_class=HTMLResponse)
 def show_scan(
-    scan_id: int, request: Request, session: Session = Depends(get_session),
+    scan_id: int,
+    request: Request,
+    page: int = 1,
+    per_page: int = _DEFAULT_PER_PAGE,
+    sort: str = "size_desc",
+    session: Session = Depends(get_session),
 ):
     scan = session.get(models.DedupScan, scan_id)
     if scan is None:
         raise HTTPException(404)
+    if per_page < 1:
+        per_page = _DEFAULT_PER_PAGE
+    if per_page > 200:
+        per_page = 200
+    if page < 1:
+        page = 1
+
     quarantined_paths: set[str] = set()
     for d in session.scalars(
         select(models.DedupDeletion).where(
@@ -111,8 +127,28 @@ def show_scan(
     ):
         quarantined_paths.add(d.original_path)
 
+    total_groups = session.scalar(
+        select(func.count()).select_from(models.DedupGroup).where(
+            models.DedupGroup.scan_id == scan_id
+        )
+    ) or 0
+    if sort == "size_asc":
+        order = models.DedupGroup.size.asc()
+    else:
+        sort = "size_desc"
+        order = models.DedupGroup.size.desc()
+
+    offset = (page - 1) * per_page
+    group_rows = session.scalars(
+        select(models.DedupGroup)
+        .where(models.DedupGroup.scan_id == scan_id)
+        .order_by(order, models.DedupGroup.id.asc())
+        .offset(offset)
+        .limit(per_page)
+    ).all()
+
     groups = []
-    for group in scan.groups:
+    for group in group_rows:
         paths = scans.parse_group_paths(group.paths_json)
         groups.append({
             "id": group.id,
@@ -121,9 +157,80 @@ def show_scan(
             "paths": paths,
             "quarantined": quarantined_paths,
         })
+
+    total_pages = max(1, (total_groups + per_page - 1) // per_page)
+    large_scan = total_groups > _LARGE_SCAN_THRESHOLD
+
     return request.app.state.templates.TemplateResponse(
         request, "dedup/scans/detail.html",
-        {"scan": scan, "groups": groups},
+        {
+            "scan": scan,
+            "groups": groups,
+            "page": page,
+            "per_page": per_page,
+            "sort": sort,
+            "total_groups": total_groups,
+            "total_pages": total_pages,
+            "large_scan": large_scan,
+            "auto_rules": quarantine.AUTO_RULES,
+        },
+    )
+
+
+@router.post("/{scan_id}/auto-resolve", response_class=HTMLResponse)
+async def auto_resolve(
+    scan_id: int,
+    request: Request,
+    session: Session = Depends(get_session),
+):
+    scan = session.get(models.DedupScan, scan_id)
+    if scan is None:
+        raise HTTPException(404)
+    form = await request.form()
+    rule = form.get("rule", "")
+    priority_path = form.get("priority_path") or None
+    try:
+        selection = quarantine.build_auto_selection(
+            scan_id, rule, priority_path,
+        )
+    except quarantine.QuarantineError as exc:
+        return request.app.state.templates.TemplateResponse(
+            request, "dedup/scans/delete_preview.html",
+            {
+                "scan": scan, "plan": None, "selection": {},
+                "error": str(exc),
+            },
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+    if not selection:
+        return request.app.state.templates.TemplateResponse(
+            request, "dedup/scans/delete_preview.html",
+            {
+                "scan": scan, "plan": None, "selection": {},
+                "error": "aucun fichier éligible pour cette règle",
+            },
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+    try:
+        plan = quarantine.plan_deletion(
+            scan_id, selection, bulk_opt_in=True,
+        )
+    except quarantine.QuarantineError as exc:
+        return request.app.state.templates.TemplateResponse(
+            request, "dedup/scans/delete_preview.html",
+            {
+                "scan": scan, "plan": None, "selection": selection,
+                "error": str(exc),
+            },
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+    return request.app.state.templates.TemplateResponse(
+        request, "dedup/scans/delete_preview.html",
+        {
+            "scan": scan, "plan": plan, "selection": selection,
+            "error": None, "auto_rule": rule,
+            "priority_path": priority_path,
+        },
     )
 
 

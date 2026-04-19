@@ -204,6 +204,35 @@ tr:last-child td { border-bottom: none; }
   color: var(--muted);
   margin-right: 0.4rem;
 }
+.dedup-bulk-actions {
+  margin: 0.5rem 0 1rem;
+}
+.dedup-auto-form {
+  margin-bottom: 1.5rem;
+}
+.pagination {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin: 1rem 0;
+}
+.pagination .pag-info {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.btn-small {
+  font-size: 0.75rem;
+  padding: 0.1rem 0.4rem;
+  margin-left: 0.5rem;
+  background: var(--panel-2);
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  cursor: pointer;
+}
+.btn-small:hover {
+  color: var(--text);
+}
 
 .event {
   display: inline-block;

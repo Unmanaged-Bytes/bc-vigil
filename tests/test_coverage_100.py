@@ -752,9 +752,13 @@ def test_reset_removes_sibling_sqlite_files(tmp_path):
     from bc_vigil.core import admin_ops
     admin_ops.reset_database()
 
+    # rollback-journal (-journal) is never recreated in WAL mode, stays gone.
     assert not journal.exists()
-    assert not wal.exists()
-    assert not shm.exists()
+    # In WAL mode, -wal/-shm are recreated fresh by init_db; ensure the old
+    # stub content was removed (so the sibling was actually dropped and
+    # re-created rather than kept).
+    assert not wal.exists() or wal.read_bytes() != b"w"
+    assert not shm.exists() or shm.read_bytes() != b"s"
 
 
 def test_restore_removes_sibling_and_missing_digests(tmp_path):
@@ -780,8 +784,9 @@ def test_restore_removes_sibling_and_missing_digests(tmp_path):
 
     admin_ops.restore_from_archive(archive_buf.getvalue())
     assert not journal.exists()
-    assert not wal.exists()
-    assert not shm.exists()
+    # WAL siblings may be recreated by init_db but must not contain the stubs.
+    assert not wal.exists() or wal.read_bytes() != b"w"
+    assert not shm.exists() or shm.read_bytes() != b"s"
     assert settings.digests_dir.exists()
 
 

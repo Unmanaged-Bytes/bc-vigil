@@ -1,3 +1,33 @@
+bc-vigil (0.5.0-1) stable; urgency=medium
+
+  * SQLite WAL mode enabled unconditionally (journal_mode=WAL,
+    synchronous=NORMAL, busy_timeout=5000). Lets UI reads run
+    concurrently with the big final write of duplicate groups,
+    fixing the frozen-UI symptom on large scans (tested on 1M
+    files / 150k groups). Backup now runs PRAGMA
+    wal_checkpoint(TRUNCATE) first so the archived .sqlite is
+    self-contained.
+  * Duplicate groups persisted via executemany in chunks of 2000
+    rows (was one SQLAlchemy session.add() per row). Drastically
+    cuts the write-lock hold time at scan completion.
+  * Index on dedup_groups(scan_id) and (scan_id, size) so the
+    paginated scan detail view does not full-scan the table.
+  * RssSampler interval raised from 50 ms to 200 ms (fewer
+    syscalls on long scans, same peak precision).
+  * Scan detail page paginated: 20 groups per page, sort by size
+    descending by default. Summary header with total group count
+    and current page. Warning banner above 10 000 groups
+    recommending the auto-resolve rules over manual ticking.
+  * Auto-resolve: four keep-rules apply to every group in the
+    scan at once (shortest_path / oldest_mtime / newest_mtime /
+    priority_folder). Opens the deletion preview with the
+    pre-computed selection which the user still confirms with
+    DELETE before any file is moved.
+  * JS helpers on the scan detail form: "all but first" per
+    group and for the whole visible page, "clear all".
+
+ -- Younes Benmoussa <younes.benmoussa@pm.me>  Sun, 19 Apr 2026 19:30:00 +0000
+
 bc-vigil (0.4.0-1) stable; urgency=medium
 
   * HDD/SSD/removable/network detection on dedup target creation

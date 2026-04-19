@@ -1,7 +1,9 @@
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import Boolean, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    Boolean, ForeignKey, Index, Integer, String, Text, UniqueConstraint,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -226,6 +228,10 @@ class DedupScan(Base):
 
 class DedupGroup(Base):
     __tablename__ = "dedup_groups"
+    __table_args__ = (
+        Index("ix_dedup_groups_scan_id", "scan_id"),
+        Index("ix_dedup_groups_scan_size", "scan_id", "size"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     scan_id: Mapped[int] = mapped_column(

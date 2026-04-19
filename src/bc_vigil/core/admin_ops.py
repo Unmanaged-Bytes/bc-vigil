@@ -40,11 +40,22 @@ def has_active_scans() -> int:
         return int(integrity_active) + int(dedup_active)
 
 
+def _checkpoint_wal() -> None:
+    from bc_vigil.db import engine
+    try:
+        with engine.connect() as conn:
+            conn.exec_driver_sql("PRAGMA wal_checkpoint(TRUNCATE)")
+    except Exception:
+        pass
+
+
 def build_backup_archive() -> bytes:
     buf = io.BytesIO()
     db_path = settings.data_dir / DB_FILENAME
     digests_dir = settings.digests_dir
     dedup_dir = settings.dedup_dir
+
+    _checkpoint_wal()
 
     with tarfile.open(fileobj=buf, mode="w:gz") as tar:
         if db_path.exists():

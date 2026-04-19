@@ -2,7 +2,7 @@ import logging
 from collections.abc import Iterator
 from contextlib import contextmanager
 
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from bc_vigil.config import settings
@@ -10,12 +10,24 @@ from bc_vigil.config import settings
 log = logging.getLogger(__name__)
 
 
+def _apply_sqlite_pragmas(dbapi_conn, _connection_record) -> None:
+    cur = dbapi_conn.cursor()
+    try:
+        cur.execute("PRAGMA journal_mode=WAL")
+        cur.execute("PRAGMA synchronous=NORMAL")
+        cur.execute("PRAGMA busy_timeout=5000")
+    finally:
+        cur.close()
+
+
 def _build_engine():
-    return create_engine(
+    engine = create_engine(
         settings.db_url,
         echo=False,
         connect_args={"check_same_thread": False},
     )
+    event.listen(engine, "connect", _apply_sqlite_pragmas)
+    return engine
 
 
 engine = _build_engine()

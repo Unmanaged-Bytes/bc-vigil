@@ -22,7 +22,7 @@
         <button class="btn">{{ t(request, "btn.acknowledge") }}</button>
       </form>
     {% endif %}
-    {% if scan.status == 'duplicates' and groups %}
+    {% if scan.status == 'duplicates' and total_groups %}
       <a href="/dedup/scans/{{ scan.id }}/groups.csv" class="btn">{{ t(request, "btn.export_csv") }}</a>
     {% endif %}
   </div>
@@ -43,14 +43,56 @@
   {% if scan.error %}<dt>{{ t(request, "scans.detail.error") }}</dt><dd class="error">{{ scan.error }}</dd>{% endif %}
 </dl>
 
-{% if scan.status == 'duplicates' and groups %}
-<h2>{{ t(request, "dedup.scans.groups") }} ({{ groups | length }})</h2>
+{% if scan.status == 'duplicates' and total_groups %}
 
-<form method="post" action="/dedup/scans/{{ scan.id }}/delete-preview" class="dedup-delete-form">
+{% if large_scan %}
+<p class="error">{{ t(request, "dedup.delete.warn_large_scan") | safe }}</p>
+{% endif %}
+
+<h2>{{ t(request, "dedup.delete.auto_title") }}</h2>
+<form method="post" action="/dedup/scans/{{ scan.id }}/auto-resolve" class="form dedup-auto-form">
+  <p class="hint">{{ t(request, "dedup.delete.auto_hint") | safe }}</p>
+  <fieldset>
+    <legend>{{ t(request, "dedup.delete.auto_rule") }}</legend>
+    <label class="inline"><input type="radio" name="rule" value="shortest_path" checked> {{ t(request, "dedup.delete.rule.shortest_path") }}</label>
+    <label class="inline"><input type="radio" name="rule" value="oldest_mtime"> {{ t(request, "dedup.delete.rule.oldest_mtime") }}</label>
+    <label class="inline"><input type="radio" name="rule" value="newest_mtime"> {{ t(request, "dedup.delete.rule.newest_mtime") }}</label>
+    <label class="inline"><input type="radio" name="rule" value="priority_folder"> {{ t(request, "dedup.delete.rule.priority_folder") }}</label>
+  </fieldset>
+  <label>{{ t(request, "dedup.delete.priority_path") }}
+    <input type="text" name="priority_path" placeholder="/backup/prioritaire">
+  </label>
+  <div>
+    <button class="btn primary" type="submit">{{ t(request, "dedup.delete.auto_btn") }}</button>
+  </div>
+</form>
+
+<h2>{{ t(request, "dedup.scans.groups") }}
+  <small>{{ t(request, "dedup.delete.showing_page") }} {{ page }}/{{ total_pages }}
+    ({{ total_groups }} {{ t(request, "dedup.delete.total_groups") }})</small>
+</h2>
+
+<form method="get" action="/dedup/scans/{{ scan.id }}" class="filter-bar">
+  <label>{{ t(request, "dedup.delete.sort") }}
+    <select name="sort" onchange="this.form.submit()">
+      <option value="size_desc" {% if sort == 'size_desc' %}selected{% endif %}>{{ t(request, "dedup.delete.sort.size_desc") }}</option>
+      <option value="size_asc" {% if sort == 'size_asc' %}selected{% endif %}>{{ t(request, "dedup.delete.sort.size_asc") }}</option>
+    </select>
+  </label>
+  <input type="hidden" name="per_page" value="{{ per_page }}">
+</form>
+
+<form method="post" action="/dedup/scans/{{ scan.id }}/delete-preview" class="dedup-delete-form" id="dedup-delete-form">
   <p class="hint">{{ t(request, "dedup.delete.hint") | safe }}</p>
+  <div class="dedup-bulk-actions">
+    <button type="button" class="btn" onclick="dedupSelectAllButFirst(document.getElementById('dedup-delete-form'))">{{ t(request, "dedup.delete.btn.all_but_first_page") }}</button>
+    <button type="button" class="btn" onclick="dedupClearSelection(document.getElementById('dedup-delete-form'))">{{ t(request, "dedup.delete.btn.clear") }}</button>
+  </div>
   {% for group in groups %}
-  <div class="dedup-group">
-    <h3>{{ t(request, "dedup.scans.group") }} #{{ group.id if group.id is defined else loop.index }} — {{ group.size | humanbytes }} × {{ group.file_count }}</h3>
+  <div class="dedup-group" data-group-id="{{ group.id }}">
+    <h3>{{ t(request, "dedup.scans.group") }} #{{ group.id }} — {{ group.size | humanbytes }} × {{ group.file_count }}
+      <button type="button" class="btn-small" onclick="dedupSelectGroupAllButFirst(this.closest('.dedup-group'))">{{ t(request, "dedup.delete.btn.all_but_first_group") }}</button>
+    </h3>
     <ul>
       {% for path in group.paths %}
         <li>
@@ -61,7 +103,8 @@
           <label class="inline">
             <input type="checkbox"
                    name="group_{{ group.id }}"
-                   value="{{ path }}">
+                   value="{{ path }}"
+                   data-path="{{ path }}">
             <code>{{ path }}</code>
           </label>
           {% endif %}
@@ -74,6 +117,31 @@
     <button class="btn danger" type="submit">{{ t(request, "dedup.delete.preview_btn") }}</button>
   </div>
 </form>
+
+<nav class="pagination">
+  {% if page > 1 %}
+    <a class="btn" href="/dedup/scans/{{ scan.id }}?page={{ page - 1 }}&per_page={{ per_page }}&sort={{ sort }}">&laquo; {{ t(request, "dedup.delete.prev") }}</a>
+  {% endif %}
+  <span class="pag-info">{{ page }} / {{ total_pages }}</span>
+  {% if page < total_pages %}
+    <a class="btn" href="/dedup/scans/{{ scan.id }}?page={{ page + 1 }}&per_page={{ per_page }}&sort={{ sort }}">{{ t(request, "dedup.delete.next") }} &raquo;</a>
+  {% endif %}
+</nav>
+
+<script>
+function dedupSelectGroupAllButFirst(groupEl) {
+  const boxes = groupEl.querySelectorAll('input[type="checkbox"][name^="group_"]');
+  boxes.forEach((cb, idx) => { cb.checked = (idx !== 0); });
+}
+function dedupSelectAllButFirst(form) {
+  const groups = form.querySelectorAll('.dedup-group');
+  groups.forEach(g => dedupSelectGroupAllButFirst(g));
+}
+function dedupClearSelection(form) {
+  const boxes = form.querySelectorAll('input[type="checkbox"][name^="group_"]');
+  boxes.forEach(cb => { cb.checked = false; });
+}
+</script>
 {% elif scan.status == 'ok' %}
 <p class="ok">{{ t(request, "dedup.scans.no_duplicates") }}</p>
 {% endif %}

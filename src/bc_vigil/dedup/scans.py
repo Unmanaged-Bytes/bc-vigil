@@ -6,6 +6,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from threading import BoundedSemaphore, Lock
 
+from sqlalchemy import insert
+
 from bc_vigil import models
 from bc_vigil.config import settings
 from bc_vigil.db import session_scope
@@ -139,17 +141,33 @@ def _execute_locked(scan_id: int) -> None:
             models.DEDUP_DUPLICATES if result.duplicate_groups > 0
             else models.DEDUP_OK
         )
-
-        for group in result.groups:
-            session.add(models.DedupGroup(
-                scan_id=scan.id,
-                size=int(group.size),
-                file_count=len(group.files),
-                paths_json=json.dumps(group.files, ensure_ascii=False),
-            ))
-
         target = scan.target
         target.last_scan_id = scan.id
+
+    _bulk_insert_groups(scan_id, result.groups)
+
+
+_GROUP_INSERT_CHUNK = 2000
+
+
+def _bulk_insert_groups(
+    scan_id: int, groups: list[bcduplicate.DuplicateGroup],
+) -> None:
+    if not groups:
+        return
+    rows = [
+        {
+            "scan_id": scan_id,
+            "size": int(g.size),
+            "file_count": len(g.files),
+            "paths_json": json.dumps(g.files, ensure_ascii=False),
+        }
+        for g in groups
+    ]
+    for start in range(0, len(rows), _GROUP_INSERT_CHUNK):
+        chunk = rows[start:start + _GROUP_INSERT_CHUNK]
+        with session_scope() as session:
+            session.execute(insert(models.DedupGroup), chunk)
 
 
 def _finalize_failure(scan_id: int, message: str) -> None:
