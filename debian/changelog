@@ -1,3 +1,16 @@
+bc-vigil (0.1.3-1) stable; urgency=medium
+
+  * Fix scans permanently failing with "malformed left digest file"
+    once an empty target was scanned: 0.1.1 synthesized a summary-only
+    digest for empty targets, but bc-hash diff rejects that format,
+    which broke every subsequent scheduled scan whose baseline was the
+    synth file. run_hash no longer synthesizes; empty scans are stored
+    with digest_path=NULL, and a baseline that is empty or unusable is
+    automatically replaced by the first real scan (self-heal for prod
+    DBs already poisoned by 0.1.1).
+
+ -- Younes Benmoussa <younes.benmoussa@pm.me>  Sun, 19 Apr 2026 09:34:35 +0000
+
 bc-vigil (0.1.2-1) stable; urgency=medium
 
   * Fix schedule form silently ignoring the time picked by the user:
