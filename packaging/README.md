@@ -66,6 +66,30 @@ sudo ufw allow from 192.168.0.0/16 to any port 8080 proto tcp
 
 Adjust the source CIDR to match your own network.
 
+### Dedup on paths outside `/var/lib/bc-vigil` — systemd drop-in
+
+The packaged unit is sandboxed (`ProtectSystem=strict`,
+`ReadWritePaths=/var/lib/bc-vigil`), so the service cannot delete files
+outside its state directory. If you want to deduplicate data living on
+a filesystem like `/storage`, drop a one-liner override:
+
+```bash
+sudo systemctl edit bc-vigil
+```
+
+Add:
+
+```ini
+[Service]
+ReadWritePaths=/storage
+AmbientCapabilities=CAP_DAC_READ_SEARCH CAP_DAC_OVERRIDE
+CapabilityBoundingSet=CAP_DAC_READ_SEARCH CAP_DAC_OVERRIDE
+```
+
+The `CAP_DAC_OVERRIDE` is needed to delete files owned by `root` (the
+service itself runs as the `bc-vigil` user). Adjust the path list to
+your layout. Restart with `systemctl restart bc-vigil`.
+
 ## What the `.deb` contains
 
 | Path | Purpose |

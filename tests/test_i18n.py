@@ -7,7 +7,7 @@ def test_translate_returns_fr_by_default():
 
     req = Mock()
     req.cookies = {}
-    assert translate(req, "nav.targets") == "Cibles"
+    assert translate(req, "nav.targets") == "Cibles intégrité"
     assert DEFAULT_LANG == "fr"
 
 
@@ -17,7 +17,7 @@ def test_translate_returns_en_when_cookie_set():
 
     req = Mock()
     req.cookies = {"bcv_lang": "en"}
-    assert translate(req, "nav.targets") == "Targets"
+    assert translate(req, "nav.targets") == "Integrity targets"
 
 
 def test_translate_fallback_on_unsupported_lang():
@@ -26,7 +26,7 @@ def test_translate_fallback_on_unsupported_lang():
 
     req = Mock()
     req.cookies = {"bcv_lang": "zz"}
-    assert translate(req, "nav.targets") == "Cibles"
+    assert translate(req, "nav.targets") == "Cibles intégrité"
 
 
 def test_translate_fallback_to_default_on_missing_key_en():

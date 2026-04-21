@@ -987,3 +987,88 @@ def test_cleanup_stale_scans_marks_pre_process_scans_as_failed(tmp_path, monkeyp
     with SessionLocal() as session:
         assert session.get(models.Scan, scan_id).status == models.SCAN_FAILED
         assert session.get(models.DedupScan, dscan_id).status == models.DEDUP_FAILED
+
+
+def test_detect_system_tz_env_takes_precedence(monkeypatch):
+    from bc_vigil.config import _detect_system_tz
+    monkeypatch.setenv("TZ", "Europe/Paris")
+    assert _detect_system_tz() == "Europe/Paris"
+
+
+def test_detect_system_tz_reads_etc_timezone(tmp_path, monkeypatch):
+    from bc_vigil import config as cfg_mod
+    monkeypatch.delenv("TZ", raising=False)
+    fake_etc_tz = tmp_path / "timezone"
+    fake_etc_tz.write_text("Africa/Casablanca\n")
+    monkeypatch.setattr(cfg_mod, "_ETC_TIMEZONE", fake_etc_tz)
+    monkeypatch.setattr(cfg_mod, "_ETC_LOCALTIME", tmp_path / "nope")
+    assert cfg_mod._detect_system_tz() == "Africa/Casablanca"
+
+
+def test_detect_system_tz_falls_back_to_utc(tmp_path, monkeypatch):
+    from bc_vigil import config as cfg_mod
+    monkeypatch.delenv("TZ", raising=False)
+    monkeypatch.setattr(cfg_mod, "_ETC_TIMEZONE", tmp_path / "no-tz")
+    monkeypatch.setattr(cfg_mod, "_ETC_LOCALTIME", tmp_path / "no-localtime")
+    assert cfg_mod._detect_system_tz() == "UTC"
+
+
+def test_detect_system_tz_reads_etc_localtime_symlink(tmp_path, monkeypatch):
+    from bc_vigil import config as cfg_mod
+    monkeypatch.delenv("TZ", raising=False)
+    monkeypatch.setattr(cfg_mod, "_ETC_TIMEZONE", tmp_path / "no-tz")
+    fake_lt = tmp_path / "localtime"
+    fake_lt.symlink_to("/usr/share/zoneinfo/Europe/Paris")
+    monkeypatch.setattr(cfg_mod, "_ETC_LOCALTIME", fake_lt)
+    assert cfg_mod._detect_system_tz() == "Europe/Paris"
+
+
+def test_detect_system_tz_ignores_empty_etc_timezone(tmp_path, monkeypatch):
+    from bc_vigil import config as cfg_mod
+    monkeypatch.delenv("TZ", raising=False)
+    empty = tmp_path / "timezone"
+    empty.write_text("")
+    monkeypatch.setattr(cfg_mod, "_ETC_TIMEZONE", empty)
+    monkeypatch.setattr(cfg_mod, "_ETC_LOCALTIME", tmp_path / "nope")
+    assert cfg_mod._detect_system_tz() == "UTC"
+
+
+def test_cleanup_stale_scans_logs_count_at_startup(tmp_path, monkeypatch, caplog):
+    import logging
+    from datetime import datetime, timedelta, timezone
+    from bc_vigil.config import settings
+    from bc_vigil.db import SessionLocal, init_db
+    from bc_vigil import models
+    from bc_vigil.integrity import scheduler as integ_sched
+    from bc_vigil.dedup import scheduler as dedup_sched
+
+    monkeypatch.setattr(settings, "data_dir", tmp_path)
+    init_db()
+
+    old_ts = datetime.now(timezone.utc) - timedelta(days=1)
+    with SessionLocal() as session:
+        target = models.Target(name="t-log", path=str(tmp_path), algorithm="sha256")
+        session.add(target)
+        session.flush()
+        session.add(models.Scan(
+            target_id=target.id, status=models.SCAN_RUNNING,
+            trigger="manual", started_at=old_ts,
+        ))
+        dtarget = models.DedupTarget(name="dt-log", path=str(tmp_path), algorithm="xxh3")
+        session.add(dtarget)
+        session.flush()
+        session.add(models.DedupScan(
+            target_id=dtarget.id, status=models.DEDUP_RUNNING,
+            trigger="manual", started_at=old_ts,
+        ))
+        session.commit()
+
+    integ_sched.shutdown()
+    dedup_sched.shutdown()
+    with caplog.at_level(logging.INFO):
+        integ_sched.start()
+        dedup_sched.start()
+    integ_sched.shutdown()
+    dedup_sched.shutdown()
+    assert any("stale integrity scan" in m for m in caplog.messages)
+    assert any("stale dedup scan" in m for m in caplog.messages)

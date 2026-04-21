@@ -3,7 +3,7 @@
 {% block content %}
 <div class="page-header"
   {% if scan.status in ['pending', 'running'] %}
-    hx-get="/scans/{{ scan.id }}" hx-trigger="every 2s" hx-target="body" hx-swap="outerHTML"
+    hx-get="/scans/{{ scan.id }}" hx-trigger="every 2s" hx-target="main" hx-swap="outerHTML" hx-select="main"
   {% endif %}>
   <h1>{{ t(request, "scans.detail.title") }} #{{ scan.id }} — <span class="status status-{{ scan.status }}">{{ scan.status }}</span></h1>
   <div class="actions">

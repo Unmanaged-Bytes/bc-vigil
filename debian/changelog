@@ -1,3 +1,28 @@
+bc-vigil (0.5.5-1) stable; urgency=medium
+
+  * UI: fix "page noire" symptom on /scans and /dedup/scans during a
+    running scan. The auto-refresh used hx-target="body" hx-swap=
+    "outerHTML", which momentarily blanked the document while the
+    body element was being swapped. Switched to hx-target="this" /
+    "main" with hx-select="table" / "main" so only the relevant
+    fragment is replaced, preserving the rest of the page intact.
+  * UI: nav menu labels disambiguated. "Cibles" / "Doublons" /
+    "Analyses doublons" became "Cibles intégrité" / "Cibles doublons"
+    / "Scans doublons" (FR), and "Targets" / "Dedup" / "Dedup scans"
+    became "Integrity targets" / "Dedup targets" / "Dedup scans" (EN).
+  * Config: BC_VIGIL_DISPLAY_TZ now defaults to detecting the system
+    timezone (TZ env var, then /etc/timezone, then /etc/localtime
+    symlink target, fallback UTC). Explicit BC_VIGIL_DISPLAY_TZ env
+    still overrides.
+  * Stale scan cleanup: emits an INFO log line at startup when one or
+    more scans were marked failed by the cleanup pass.
+  * Favicon: ships a small SVG favicon (no more 404 in browser
+    devtools).
+  * Packaging README: documents the systemd drop-in needed for dedup
+    on paths outside /var/lib/bc-vigil (e.g. /storage on btrfs).
+
+ -- Younes Benmoussa <younes.benmoussa@pm.me>  Tue, 21 Apr 2026 11:09:16 +0100
+
 bc-vigil (0.5.4-1) stable; urgency=medium
 
   * Timezone: cron schedules are now evaluated and labelled in

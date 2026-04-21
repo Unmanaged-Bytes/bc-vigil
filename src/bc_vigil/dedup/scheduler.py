@@ -75,7 +75,12 @@ def start() -> BackgroundScheduler:
     global _scheduler
     if _scheduler is not None:
         return _scheduler
-    _cleanup_stale_scans()
+    cleaned = _cleanup_stale_scans()
+    if cleaned:
+        log.info(
+            "cleaned up %d stale dedup scan(s) "
+            "from previous service start", cleaned,
+        )
     _scheduler = BackgroundScheduler(timezone=display_tz())
     _scheduler.start()
     _reload_jobs()
