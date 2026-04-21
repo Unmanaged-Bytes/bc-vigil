@@ -132,6 +132,73 @@ def create_schedule(
     return RedirectResponse(f"/targets/{target_id}", status_code=303)
 
 
+@router.get("/{schedule_id}/edit", response_class=HTMLResponse)
+def edit_schedule_form(
+    schedule_id: int, request: Request, session: Session = Depends(get_session),
+):
+    schedule = session.get(models.Schedule, schedule_id)
+    if schedule is None:
+        raise HTTPException(404)
+    target = session.get(models.Target, schedule.target_id)
+    state = _default_form_state()
+    state["mode"] = "cron"
+    state["cron_expr"] = schedule.cron
+    return request.app.state.templates.TemplateResponse(
+        request, "schedules/form.html",
+        {
+            "target": target, "state": state, "error": None,
+            "edit": True, "schedule": schedule,
+        },
+    )
+
+
+@router.post("/{schedule_id}/update")
+def update_schedule(
+    schedule_id: int,
+    request: Request,
+    mode: str = Form("daily"),
+    interval_minutes: str = Form("15"),
+    minute_of_hour: str = Form("0"),
+    time: str = Form("03:00"),
+    days: list[str] = Form(default_factory=list),
+    day_of_month: str = Form("1"),
+    cron_expr: str = Form(""),
+    enabled: bool = Form(True),
+    session: Session = Depends(get_session),
+):
+    schedule = session.get(models.Schedule, schedule_id)
+    if schedule is None:
+        raise HTTPException(404)
+    target = session.get(models.Target, schedule.target_id)
+    result = cron_builder.build_cron(
+        mode,
+        interval_minutes=interval_minutes,
+        minute_of_hour=minute_of_hour,
+        time=time,
+        days=days,
+        day_of_month=day_of_month,
+        cron_expr=cron_expr,
+    )
+    if result.error is not None or result.cron is None:
+        state = _state_from_form(
+            mode, interval_minutes, minute_of_hour, time, days,
+            day_of_month, cron_expr,
+        )
+        return request.app.state.templates.TemplateResponse(
+            request, "schedules/form.html",
+            {
+                "target": target, "state": state, "error": result.error,
+                "edit": True, "schedule": schedule,
+            },
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+    schedule.cron = result.cron
+    schedule.enabled = enabled
+    session.commit()
+    scheduler.sync_schedule(session, schedule_id)
+    return RedirectResponse(f"/targets/{target.id}", status_code=303)
+
+
 @router.post("/{schedule_id}/toggle")
 def toggle_schedule(schedule_id: int, session: Session = Depends(get_session)):
     schedule = session.get(models.Schedule, schedule_id)

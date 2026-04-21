@@ -1,17 +1,21 @@
 {% extends "base.html" %}
 {% from "_macros.html" import time_picker %}
-{% block title %}{{ t(request, "schedules.new") }} — {{ t(request, "app.title") }}{% endblock %}
+{% set _edit = edit is defined and edit %}
+{% set _title_key = "schedules.edit" if _edit else "schedules.new" %}
+{% set _action = "/dedup/schedules/" ~ schedule.id ~ "/update" if _edit else "/dedup/schedules" %}
+{% set _submit_key = "btn.save" if _edit else "btn.create" %}
+{% block title %}{{ t(request, _title_key) }} — {{ t(request, "app.title") }}{% endblock %}
 {% block content %}
-<h1>{{ t(request, "schedules.new") }} — {{ target.name }}</h1>
+<h1>{{ t(request, _title_key) }} — {{ target.name }}</h1>
 
 {% if error %}<p class="error">{{ error }}</p>{% endif %}
 
-<form method="post" action="/dedup/schedules" class="form schedule-form"
+<form method="post" action="{{ _action }}" class="form schedule-form"
       hx-post="/dedup/schedules/preview"
       hx-trigger="change delay:200ms, keyup changed delay:400ms"
       hx-target="#schedule-preview"
       hx-swap="innerHTML">
-  <input type="hidden" name="target_id" value="{{ target.id }}">
+  {% if not _edit %}<input type="hidden" name="target_id" value="{{ target.id }}">{% endif %}
 
   <label>{{ t(request, "schedules.form.frequency") }}
     <select name="mode" data-mode-select>
@@ -79,7 +83,7 @@
   </div>
 
   <label class="inline">
-    <input type="checkbox" name="enabled" value="true" checked>
+    <input type="checkbox" name="enabled" value="true" {% if not _edit or schedule.enabled %}checked{% endif %}>
     {{ t(request, "schedules.form.enable") }}
   </label>
 
@@ -88,7 +92,7 @@
   </div>
 
   <div>
-    <button class="btn primary" type="submit">{{ t(request, "btn.create") }}</button>
+    <button class="btn primary" type="submit">{{ t(request, _submit_key) }}</button>
     <a href="/dedup/targets/{{ target.id }}" class="btn">{{ t(request, "btn.back") }}</a>
   </div>
 </form>

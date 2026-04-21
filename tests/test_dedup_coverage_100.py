@@ -1553,3 +1553,294 @@ def test_rss_sampler_lifecycle(tmp_path):
         s.stop()
     finally:
         proc.wait(timeout=5)
+
+
+# =========================================================================
+# Edit target / schedule + retry failed deletion (0.5.6)
+# =========================================================================
+
+
+def _prepare_app(tmp_path, monkeypatch):
+    monkeypatch.setenv("BC_VIGIL_DATA_DIR", str(tmp_path / "var"))
+    from bc_vigil.config import settings
+    settings.data_dir = tmp_path / "var"
+    from bc_vigil.db import init_db
+    init_db()
+
+
+def test_edit_dedup_target_form_and_update(tmp_path, monkeypatch):
+    _prepare_app(tmp_path, monkeypatch)
+    target_id = _make_target(tmp_path)
+
+    from bc_vigil.app import create_app
+    from fastapi.testclient import TestClient
+    from bc_vigil.db import SessionLocal
+    from bc_vigil import models
+
+    with TestClient(create_app()) as client:
+        r = client.get(f"/dedup/targets/{target_id}/edit")
+        assert r.status_code == 200
+        assert "dedup-t" in r.text
+        assert "readonly" in r.text
+
+        r = client.post(
+            f"/dedup/targets/{target_id}/update",
+            data={
+                "name": "renamed-dedup",
+                "algorithm": "xxh3",
+                "threads": "2",
+                "includes": "*.mp4",
+                "excludes": ".git",
+                "minimum_size": "1024",
+                "one_file_system": "true",
+            },
+            follow_redirects=False,
+        )
+        assert r.status_code == 303
+        assert r.headers["location"] == f"/dedup/targets/{target_id}"
+
+    with SessionLocal() as session:
+        target = session.get(models.DedupTarget, target_id)
+        assert target.name == "renamed-dedup"
+        assert target.threads == "2"
+        assert target.minimum_size == 1024
+        assert target.one_file_system is True
+
+
+def test_edit_dedup_target_missing(tmp_path, monkeypatch):
+    _prepare_app(tmp_path, monkeypatch)
+    from bc_vigil.app import create_app
+    from fastapi.testclient import TestClient
+    with TestClient(create_app()) as client:
+        r = client.get("/dedup/targets/9999/edit")
+        assert r.status_code == 404
+        r = client.post(
+            "/dedup/targets/9999/update",
+            data={"name": "x", "algorithm": "xxh3", "threads": "auto"},
+        )
+        assert r.status_code == 404
+
+
+def test_edit_dedup_target_rejects_duplicate_name(tmp_path, monkeypatch):
+    _prepare_app(tmp_path, monkeypatch)
+    target_id = _make_target(tmp_path, name="first-dt")
+    _make_target(tmp_path, name="second-dt")
+    from bc_vigil.app import create_app
+    from fastapi.testclient import TestClient
+    with TestClient(create_app()) as client:
+        r = client.post(
+            f"/dedup/targets/{target_id}/update",
+            data={"name": "second-dt", "algorithm": "xxh3", "threads": "auto"},
+        )
+        assert r.status_code == 400
+
+
+def test_edit_dedup_target_invalid_minsize(tmp_path, monkeypatch):
+    _prepare_app(tmp_path, monkeypatch)
+    target_id = _make_target(tmp_path)
+    from bc_vigil.app import create_app
+    from fastapi.testclient import TestClient
+    with TestClient(create_app()) as client:
+        r = client.post(
+            f"/dedup/targets/{target_id}/update",
+            data={
+                "name": "dedup-t", "algorithm": "xxh3", "threads": "auto",
+                "minimum_size": "not-a-number",
+            },
+        )
+        assert r.status_code == 400
+
+
+def test_edit_dedup_schedule_form_and_update(tmp_path, monkeypatch):
+    _prepare_app(tmp_path, monkeypatch)
+    target_id = _make_target(tmp_path)
+    from bc_vigil.app import create_app
+    from fastapi.testclient import TestClient
+    from bc_vigil.db import SessionLocal
+    from bc_vigil import models
+    from sqlalchemy import select
+
+    with TestClient(create_app()) as client:
+        r = client.post(
+            "/dedup/schedules",
+            data={
+                "target_id": str(target_id),
+                "mode": "cron", "cron_expr": "0 3 * * *",
+            },
+            follow_redirects=False,
+        )
+        assert r.status_code == 303
+        with SessionLocal() as session:
+            sched_id = session.scalars(select(models.DedupSchedule)).first().id
+
+        r = client.get(f"/dedup/schedules/{sched_id}/edit")
+        assert r.status_code == 200
+        assert "0 3 * * *" in r.text
+
+        r = client.post(
+            f"/dedup/schedules/{sched_id}/update",
+            data={"mode": "cron", "cron_expr": "30 4 * * *", "enabled": "true"},
+            follow_redirects=False,
+        )
+        assert r.status_code == 303
+
+    with SessionLocal() as session:
+        sched = session.get(models.DedupSchedule, sched_id)
+        assert sched.cron == "30 4 * * *"
+
+
+def test_edit_dedup_schedule_missing_and_invalid(tmp_path, monkeypatch):
+    _prepare_app(tmp_path, monkeypatch)
+    target_id = _make_target(tmp_path)
+    from bc_vigil.app import create_app
+    from fastapi.testclient import TestClient
+    from bc_vigil.db import SessionLocal
+    from bc_vigil import models
+    from sqlalchemy import select
+
+    with TestClient(create_app()) as client:
+        r = client.get("/dedup/schedules/9999/edit")
+        assert r.status_code == 404
+        r = client.post("/dedup/schedules/9999/update", data={"mode": "daily", "time": "03:00"})
+        assert r.status_code == 404
+
+        client.post(
+            "/dedup/schedules",
+            data={
+                "target_id": str(target_id),
+                "mode": "cron", "cron_expr": "0 3 * * *",
+            },
+            follow_redirects=False,
+        )
+        with SessionLocal() as session:
+            sched_id = session.scalars(select(models.DedupSchedule)).first().id
+
+        r = client.post(
+            f"/dedup/schedules/{sched_id}/update",
+            data={"mode": "cron", "cron_expr": "garbage"},
+        )
+        assert r.status_code == 400
+
+
+def _make_failed_deletion(tmp_path: Path, target_id: int) -> int:
+    """Create a scan with a duplicate pair, insert a failed DedupDeletion
+    (no trash_path) for one of them, return the deletion id."""
+    from bc_vigil import models
+    from bc_vigil.db import SessionLocal
+    import hashlib
+
+    src_dir = tmp_path / f"dup-src-{target_id}"
+    src_dir.mkdir()
+    f1 = src_dir / "a.txt"
+    f1.write_text("dup content")
+    f2 = src_dir / "b.txt"
+    f2.write_text("dup content")
+
+    hash_hex = hashlib.sha256(b"dup content").hexdigest()
+    with SessionLocal() as session:
+        scan = models.DedupScan(
+            target_id=target_id, status=models.DEDUP_DUPLICATES,
+            trigger="manual",
+            started_at=datetime.now(timezone.utc),
+            finished_at=datetime.now(timezone.utc),
+        )
+        session.add(scan)
+        session.flush()
+        group = models.DedupGroup(
+            scan_id=scan.id, size=11, file_count=2,
+            paths_json=json.dumps([str(f1), str(f2)]),
+        )
+        session.add(group)
+        session.flush()
+        deletion = models.DedupDeletion(
+            scan_id=scan.id, group_id=group.id,
+            original_path=str(f2),
+            trash_path=None,
+            size=11, hash_algo="sha256", hash_hex=hash_hex,
+            stored_mode=models.STORED_MODE_COPY_UNLINK,
+            status=models.DELETION_FAILED,
+            error="simulated EROFS",
+            triggered_by="test",
+            deleted_at=datetime.now(timezone.utc),
+        )
+        session.add(deletion)
+        session.commit()
+        return deletion.id
+
+
+def test_retry_failed_deletion_moves_file_to_trash(tmp_path, monkeypatch):
+    _prepare_app(tmp_path, monkeypatch)
+    target_id = _make_target(tmp_path)
+    deletion_id = _make_failed_deletion(tmp_path, target_id)
+
+    from bc_vigil.app import create_app
+    from fastapi.testclient import TestClient
+    from bc_vigil.db import SessionLocal
+    from bc_vigil import models
+
+    with TestClient(create_app()) as client:
+        r = client.post(
+            f"/dedup/trash/{deletion_id}/retry", follow_redirects=False,
+        )
+        assert r.status_code == 303
+
+    with SessionLocal() as session:
+        old = session.get(models.DedupDeletion, deletion_id)
+        assert old is None
+        rows = session.query(models.DedupDeletion).all()
+        assert len(rows) == 1
+        assert rows[0].status == models.DELETION_QUARANTINED
+        assert rows[0].trash_path is not None
+
+
+def test_retry_failed_deletion_rejects_wrong_status(tmp_path, monkeypatch):
+    _prepare_app(tmp_path, monkeypatch)
+    target_id = _make_target(tmp_path)
+    deletion_id = _make_failed_deletion(tmp_path, target_id)
+    from bc_vigil.db import SessionLocal
+    from bc_vigil import models
+    with SessionLocal() as session:
+        d = session.get(models.DedupDeletion, deletion_id)
+        d.status = models.DELETION_QUARANTINED
+        session.commit()
+
+    from bc_vigil.app import create_app
+    from fastapi.testclient import TestClient
+    with TestClient(create_app()) as client:
+        r = client.post(f"/dedup/trash/{deletion_id}/retry")
+        assert r.status_code == 400
+
+
+def test_retry_failed_deletion_missing(tmp_path, monkeypatch):
+    _prepare_app(tmp_path, monkeypatch)
+    from bc_vigil.app import create_app
+    from fastapi.testclient import TestClient
+    with TestClient(create_app()) as client:
+        r = client.post("/dedup/trash/9999/retry")
+        assert r.status_code == 400
+
+
+def test_retry_failed_deletion_keeps_failed_row_if_source_gone(tmp_path, monkeypatch):
+    _prepare_app(tmp_path, monkeypatch)
+    target_id = _make_target(tmp_path)
+    deletion_id = _make_failed_deletion(tmp_path, target_id)
+    from bc_vigil import models
+    from bc_vigil.db import SessionLocal
+    with SessionLocal() as session:
+        d = session.get(models.DedupDeletion, deletion_id)
+        Path(d.original_path).unlink()
+
+    from bc_vigil.app import create_app
+    from fastapi.testclient import TestClient
+    with TestClient(create_app()) as client:
+        r = client.post(
+            f"/dedup/trash/{deletion_id}/retry", follow_redirects=False,
+        )
+        assert r.status_code == 303
+
+    with SessionLocal() as session:
+        rows = session.query(models.DedupDeletion).all()
+        assert len(rows) == 1
+        assert rows[0].id == deletion_id
+        assert rows[0].status == models.DELETION_FAILED
+        assert "disappeared" in (rows[0].error or "")

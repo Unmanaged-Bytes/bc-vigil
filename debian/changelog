@@ -1,3 +1,30 @@
+bc-vigil (0.5.6-1) stable; urgency=medium
+
+  * Edit integrity targets: GET /targets/{id}/edit + POST
+    /targets/{id}/update. All scalar fields editable except path
+    (immutable: a different path is conceptually a different target).
+    Preserves baseline_scan_id and the full scan history.
+  * Edit dedup targets: GET /dedup/targets/{id}/edit + POST
+    /dedup/targets/{id}/update. Same contract, plus minimum_size,
+    include_hidden, follow_symlinks, match_hardlinks,
+    one_file_system. Preserves last_scan_id and history.
+  * Edit integrity & dedup schedules: GET /schedules/{id}/edit /
+    /dedup/schedules/{id}/edit + POST /update. Schedule form opens
+    in cron-expression mode pre-filled with the current cron, switch
+    to daily/weekly/monthly via the mode select if desired. Toggle
+    enabled flag too.
+  * Retry failed dedup deletions: POST /dedup/trash/{id}/retry on
+    rows in status=failed (typically EROFS during the initial move).
+    On success, the original failed row is dropped and the new
+    quarantined row replaces it. On further failure, the original
+    row is updated with the new error message and timestamp; no
+    duplicate trash entry is created.
+  * UI: "Modifier" buttons added on target detail pages (next to
+    Duplicate) and on each schedule row (next to Activate/Disable).
+    "Réessayer la suppression" button on failed trash rows.
+
+ -- Younes Benmoussa <younes.benmoussa@pm.me>  Tue, 21 Apr 2026 11:23:07 +0100
+
 bc-vigil (0.5.5-1) stable; urgency=medium
 
   * UI: fix "page noire" symptom on /scans and /dedup/scans during a

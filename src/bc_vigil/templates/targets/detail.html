@@ -10,6 +10,7 @@
     <form method="post" action="/scans/run?target_id={{ target.id }}" style="display:inline">
       <button class="btn primary">{{ t(request, "btn.scan_now_full") }}</button>
     </form>
+    <a href="/targets/{{ target.id }}/edit" class="btn">{{ t(request, "btn.edit") }}</a>
     <form method="post" action="/targets/{{ target.id }}/duplicate" style="display:inline">
       <button class="btn">{{ t(request, "btn.duplicate") }}</button>
     </form>
@@ -81,6 +82,7 @@
       </td>
       <td>{{ s.last_run_at | localtime('%Y-%m-%d %H:%M') if s.last_run_at else '—' }}</td>
       <td>
+        <a href="/schedules/{{ s.schedule.id }}/edit" class="btn">{{ t(request, "btn.edit") }}</a>
         <form method="post" action="/schedules/{{ s.schedule.id }}/toggle" style="display:inline">
           <button class="btn">{% if s.schedule.enabled %}{{ t(request, "btn.disable") }}{% else %}{{ t(request, "btn.enable") }}{% endif %}</button>
         </form>

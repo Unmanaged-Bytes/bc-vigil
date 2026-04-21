@@ -1,7 +1,11 @@
 {% extends "base.html" %}
-{% block title %}{{ t(request, "dedup.targets.new") }} — {{ t(request, "app.title") }}{% endblock %}
+{% set _edit = edit is defined and edit %}
+{% set _title_key = "dedup.targets.edit" if _edit else "dedup.targets.new" %}
+{% set _action = "/dedup/targets/" ~ target.id ~ "/update" if _edit else "/dedup/targets" %}
+{% set _submit_key = "btn.save" if _edit else "btn.create" %}
+{% block title %}{{ t(request, _title_key) }} — {{ t(request, "app.title") }}{% endblock %}
 {% block content %}
-<h1>{{ t(request, "dedup.targets.new") }}</h1>
+<h1>{{ t(request, _title_key) }}{% if _edit %} — {{ target.name }}{% endif %}</h1>
 
 {% if error %}<p class="error">{{ error }}</p>{% endif %}
 {% if notices %}
@@ -16,12 +20,12 @@
   <p class="error">{{ t(request, "dedup.disk.warn_network") }}</p>
 {% endif %}
 
-<form method="post" action="/dedup/targets" class="form">
+<form method="post" action="{{ _action }}" class="form">
   <label>{{ t(request, "targets.form.name") }}
     <input name="name" value="{{ target.name if target else '' }}" required>
   </label>
   <label>{{ t(request, "targets.form.path") }}
-    <input name="path" value="{{ target.path if target else '' }}" required>
+    <input name="path" value="{{ target.path if target else '' }}" {% if _edit %}readonly{% else %}required{% endif %}>
   </label>
   <label>{{ t(request, "targets.form.algo") }}
     <select name="algorithm">
@@ -92,8 +96,8 @@
   </fieldset>
 
   <div>
-    <button class="btn primary" type="submit">{{ t(request, "btn.create") }}</button>
-    <a href="/dedup/targets" class="btn">{{ t(request, "btn.back") }}</a>
+    <button class="btn primary" type="submit">{{ t(request, _submit_key) }}</button>
+    <a href="{% if _edit %}/dedup/targets/{{ target.id }}{% else %}/dedup/targets{% endif %}" class="btn">{{ t(request, "btn.back") }}</a>
   </div>
 </form>
 {% endblock %}

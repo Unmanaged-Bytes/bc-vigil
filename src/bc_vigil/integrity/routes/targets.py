@@ -130,6 +130,57 @@ def show_target(target_id: int, request: Request, session: Session = Depends(get
     )
 
 
+@router.get("/{target_id}/edit", response_class=HTMLResponse)
+def edit_target_form(target_id: int, request: Request, session: Session = Depends(get_session)):
+    target = session.get(models.Target, target_id)
+    if target is None:
+        raise HTTPException(404)
+    return request.app.state.templates.TemplateResponse(
+        request, "targets/form.html",
+        {"target": target, "algorithms": models.ALGORITHMS, "error": None, "edit": True},
+    )
+
+
+@router.post("/{target_id}/update")
+def update_target(
+    target_id: int,
+    request: Request,
+    name: str = Form(...),
+    algorithm: str = Form("sha256"),
+    threads: str = Form("auto"),
+    includes: str = Form(""),
+    excludes: str = Form(""),
+    session: Session = Depends(get_session),
+):
+    target = session.get(models.Target, target_id)
+    if target is None:
+        raise HTTPException(404)
+    error = _validate_basic(name, algorithm, threads)
+    if error is None and name != target.name:
+        if session.scalar(select(models.Target).where(models.Target.name == name)):
+            error = f"un target nommé {name!r} existe déjà"
+    if error is not None:
+        return request.app.state.templates.TemplateResponse(
+            request, "targets/form.html",
+            {
+                "target": {
+                    "id": target_id, "name": name, "path": target.path,
+                    "algorithm": algorithm, "threads": threads,
+                    "includes": includes, "excludes": excludes,
+                },
+                "algorithms": models.ALGORITHMS, "error": error, "edit": True,
+            },
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+    target.name = name
+    target.algorithm = algorithm
+    target.threads = threads
+    target.includes = _clean_patterns(includes)
+    target.excludes = _clean_patterns(excludes)
+    session.commit()
+    return RedirectResponse(f"/targets/{target_id}", status_code=303)
+
+
 @router.post("/{target_id}/duplicate")
 def duplicate_target(target_id: int, session: Session = Depends(get_session)):
     source = session.get(models.Target, target_id)

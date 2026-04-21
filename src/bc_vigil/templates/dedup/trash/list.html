@@ -51,6 +51,11 @@
                 onsubmit="return confirm('{{ t(request, "dedup.trash.confirm.purge") }}')">
             <button class="btn danger">{{ t(request, "dedup.trash.btn.purge") }}</button>
           </form>
+        {% elif d.status == 'failed' %}
+          <form method="post" action="/dedup/trash/{{ d.id }}/retry" style="display:inline"
+                onsubmit="return confirm('{{ t(request, "dedup.trash.confirm.retry") }}')">
+            <button class="btn">{{ t(request, "dedup.trash.btn.retry") }}</button>
+          </form>
         {% endif %}
       </td>
     </tr>

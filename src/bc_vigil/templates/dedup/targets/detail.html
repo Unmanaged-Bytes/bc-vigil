@@ -7,6 +7,7 @@
     <form method="post" action="/dedup/scans/run?target_id={{ target.id }}" style="display:inline">
       <button class="btn primary">{{ t(request, "dedup.btn.scan_now_full") }}</button>
     </form>
+    <a href="/dedup/targets/{{ target.id }}/edit" class="btn">{{ t(request, "btn.edit") }}</a>
     <form method="post" action="/dedup/targets/{{ target.id }}/duplicate" style="display:inline">
       <button class="btn">{{ t(request, "btn.duplicate") }}</button>
     </form>
@@ -86,6 +87,7 @@
       </td>
       <td>{{ s.last_run_at | localtime('%Y-%m-%d %H:%M') if s.last_run_at else '—' }}</td>
       <td>
+        <a href="/dedup/schedules/{{ s.schedule.id }}/edit" class="btn">{{ t(request, "btn.edit") }}</a>
         <form method="post" action="/dedup/schedules/{{ s.schedule.id }}/toggle" style="display:inline">
           <button class="btn">{% if s.schedule.enabled %}{{ t(request, "btn.disable") }}{% else %}{{ t(request, "btn.enable") }}{% endif %}</button>
         </form>

@@ -183,6 +183,92 @@ def show_target(
     )
 
 
+@router.get("/{target_id}/edit", response_class=HTMLResponse)
+def edit_target_form(target_id: int, request: Request, session: Session = Depends(get_session)):
+    target = session.get(models.DedupTarget, target_id)
+    if target is None:
+        raise HTTPException(404)
+    return request.app.state.templates.TemplateResponse(
+        request, "dedup/targets/form.html",
+        {
+            "target": target,
+            "algorithms": models.DEDUP_ALGORITHMS,
+            "error": None,
+            "disk": disk_detect.detect_disk_info(Path(target.path)),
+            "notices": [],
+            "edit": True,
+        },
+    )
+
+
+@router.post("/{target_id}/update")
+def update_target(
+    target_id: int,
+    request: Request,
+    name: str = Form(...),
+    algorithm: str = Form("xxh3"),
+    threads: str = Form("auto"),
+    includes: str = Form(""),
+    excludes: str = Form(""),
+    minimum_size: str = Form(""),
+    include_hidden: bool = Form(False),
+    follow_symlinks: bool = Form(False),
+    match_hardlinks: bool = Form(False),
+    one_file_system: bool = Form(False),
+    session: Session = Depends(get_session),
+):
+    target = session.get(models.DedupTarget, target_id)
+    if target is None:
+        raise HTTPException(404)
+    error = _validate_basic(name, algorithm, threads)
+    min_size_value: int | None = None
+    if error is None:
+        min_size_value, min_err = _parse_optional_int(
+            minimum_size, 0, "taille minimale",
+        )
+        if min_err is not None:
+            error = min_err
+    if error is None and name != target.name:
+        if session.scalar(
+            select(models.DedupTarget).where(models.DedupTarget.name == name)
+        ):
+            error = f"une cible dedup nommée {name!r} existe déjà"
+    if error is not None:
+        return request.app.state.templates.TemplateResponse(
+            request, "dedup/targets/form.html",
+            {
+                "target": {
+                    "id": target_id, "name": name, "path": target.path,
+                    "algorithm": algorithm, "threads": threads,
+                    "includes": includes, "excludes": excludes,
+                    "minimum_size": minimum_size,
+                    "include_hidden": include_hidden,
+                    "follow_symlinks": follow_symlinks,
+                    "match_hardlinks": match_hardlinks,
+                    "one_file_system": one_file_system,
+                },
+                "algorithms": models.DEDUP_ALGORITHMS,
+                "error": error,
+                "disk": disk_detect.detect_disk_info(Path(target.path)),
+                "notices": [],
+                "edit": True,
+            },
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+    target.name = name
+    target.algorithm = algorithm
+    target.threads = threads
+    target.includes = _clean_patterns(includes)
+    target.excludes = _clean_patterns(excludes)
+    target.minimum_size = min_size_value
+    target.include_hidden = include_hidden
+    target.follow_symlinks = follow_symlinks
+    target.match_hardlinks = match_hardlinks
+    target.one_file_system = one_file_system
+    session.commit()
+    return RedirectResponse(f"/dedup/targets/{target_id}", status_code=303)
+
+
 @router.post("/{target_id}/duplicate")
 def duplicate_target(target_id: int, session: Session = Depends(get_session)):
     source = session.get(models.DedupTarget, target_id)

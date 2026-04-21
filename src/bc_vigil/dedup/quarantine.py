@@ -487,6 +487,62 @@ def restore(deletion_id: int) -> None:
         d.restored_at = datetime.now(timezone.utc)
 
 
+def retry(deletion_id: int) -> int | None:
+    """Retry a previously-failed deletion. Returns the id of the new
+    DedupDeletion row (quarantined) on success, or None on failure (the
+    original failed row is kept with an updated error message)."""
+    with session_scope() as session:
+        original = session.get(models.DedupDeletion, deletion_id)
+        if original is None:
+            raise QuarantineError(f"deletion {deletion_id} not found")
+        if original.status != models.DELETION_FAILED:
+            raise QuarantineError(
+                f"deletion {deletion_id} status is {original.status}, "
+                f"retry only allowed from {models.DELETION_FAILED}"
+            )
+        source = Path(original.original_path)
+        new_trash = _build_trash_path(
+            original.scan_id, original.group_id, source,
+        )
+        item = PlannedItem(
+            group_id=original.group_id,
+            original_path=original.original_path,
+            size=original.size,
+            stored_mode=original.stored_mode,
+            trash_path=str(new_trash),
+            hash_algo=original.hash_algo,
+            hash_hex=original.hash_hex,
+        )
+        scan_id = original.scan_id
+        triggered_by = original.triggered_by
+
+    _trash_root().mkdir(parents=True, exist_ok=True)
+    new_id = _execute_one(scan_id, item, triggered_by)
+
+    with session_scope() as session:
+        if new_id is not None:
+            old = session.get(models.DedupDeletion, deletion_id)
+            if old is not None:
+                session.delete(old)
+            return new_id
+        # _execute_one returned None: it inserted a fresh FAILED row for
+        # this attempt. Fold its error message into the original row and
+        # drop the duplicate so the trash view stays clean.
+        new_failed = session.query(models.DedupDeletion).filter(
+            models.DedupDeletion.scan_id == scan_id,
+            models.DedupDeletion.original_path == item.original_path,
+            models.DedupDeletion.status == models.DELETION_FAILED,
+            models.DedupDeletion.id != deletion_id,
+        ).order_by(models.DedupDeletion.id.desc()).first()
+        if new_failed is not None:
+            old = session.get(models.DedupDeletion, deletion_id)
+            if old is not None:
+                old.error = new_failed.error
+                old.deleted_at = new_failed.deleted_at
+            session.delete(new_failed)
+        return None
+
+
 def purge_one(deletion_id: int) -> None:
     with session_scope() as session:
         d = session.get(models.DedupDeletion, deletion_id)

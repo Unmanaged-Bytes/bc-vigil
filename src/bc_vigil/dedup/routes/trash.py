@@ -62,3 +62,12 @@ def purge(deletion_id: int):
     except quarantine.QuarantineError as exc:
         raise HTTPException(400, str(exc))
     return RedirectResponse("/dedup/trash", status_code=303)
+
+
+@router.post("/{deletion_id}/retry")
+def retry(deletion_id: int):
+    try:
+        quarantine.retry(deletion_id)
+    except quarantine.QuarantineError as exc:
+        raise HTTPException(400, str(exc))
+    return RedirectResponse("/dedup/trash", status_code=303)
