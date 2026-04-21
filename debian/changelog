@@ -1,3 +1,14 @@
+bc-vigil (0.5.3-1) stable; urgency=medium
+
+  * Dedup: treat missing bc-duplicate JSON output as a successful empty
+    scan instead of raising BcDuplicateError. bc-duplicate omits the
+    output file when discovery yields zero files (e.g. empty target
+    volume); bc-vigil was previously flagging these runs as failed.
+    Fixes dedup scans showing "failed" on empty volumes like
+    /storage/media or /storage/warehouse.
+
+ -- Younes Benmoussa <younes.benmoussa@pm.me>  Tue, 21 Apr 2026 10:20:19 +0100
+
 bc-vigil (0.5.1-1) stable; urgency=medium
 
   * Help page (FR and EN) rewritten from scratch. Covers the new

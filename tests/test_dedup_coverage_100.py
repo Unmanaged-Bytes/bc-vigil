@@ -244,6 +244,8 @@ def test_run_scan_non_zero_exit(tmp_path, monkeypatch):
 
 
 def test_run_scan_output_missing(tmp_path, monkeypatch):
+    # bc-duplicate omits the JSON output entirely when discovery yields
+    # zero files. Treat as a successful empty scan, not an error.
     fake = tmp_path / "bc-duplicate-no-output"
     fake.write_text(
         "#!/usr/bin/env bash\n"
@@ -258,8 +260,11 @@ def test_run_scan_output_missing(tmp_path, monkeypatch):
     source = tmp_path / "data"
     source.mkdir()
     from bc_vigil.dedup import bcduplicate
-    with pytest.raises(bcduplicate.BcDuplicateError, match="output missing"):
-        bcduplicate.run_scan(source, tmp_path / "out.json")
+    result = bcduplicate.run_scan(source, tmp_path / "out.json")
+    assert result.duplicate_groups == 0
+    assert result.duplicate_files == 0
+    assert result.wasted_bytes == 0
+    assert result.groups == []
 
 
 def test_run_scan_invalid_json(tmp_path, monkeypatch):

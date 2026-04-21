@@ -234,7 +234,10 @@ def _parse_stats_line(stderr: str) -> tuple[int, int, int, int] | None:
 
 def _parse_output_json(output_path: Path) -> ScanResult:
     if not output_path.exists():
-        raise BcDuplicateError(f"bc-duplicate output missing: {output_path}")
+        # bc-duplicate omits the JSON when discovery yields zero files
+        # (e.g. empty target). With exit=0 already validated upstream,
+        # this is a successful empty scan, not an error.
+        return ScanResult()
     try:
         raw = output_path.read_text()
         payload = json.loads(raw)

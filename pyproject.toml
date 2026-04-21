@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bc-vigil"
-version = "0.5.1"
+version = "0.5.3"
 description = "Web frontend for bc-hash: schedule hashes, detect file integrity drift"
 readme = "README.md"
 license = { text = "MIT" }
