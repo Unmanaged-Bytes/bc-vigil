@@ -367,6 +367,46 @@ tr:last-child td { border-bottom: none; }
 .help-toc a { color: var(--accent); text-decoration: none; }
 .help-toc a:hover { text-decoration: underline; }
 
+.help-layout {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 2rem;
+  align-items: start;
+}
+.help-sidebar {
+  position: sticky;
+  top: 1rem;
+  padding: 1rem;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.help-sidebar h3 {
+  margin: 0 0 0.6rem 0;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+.help-sidebar nav { display: flex; flex-direction: column; gap: 0.2rem; }
+.help-sidebar nav a {
+  padding: 0.4rem 0.6rem;
+  border-radius: 4px;
+  color: var(--text);
+  text-decoration: none;
+}
+.help-sidebar nav a:hover { background: var(--panel-2); }
+.help-sidebar nav a.active {
+  background: var(--accent);
+  color: #0b1020;
+  font-weight: 600;
+}
+.help-content { min-width: 0; }
+@media (max-width: 720px) {
+  .help-layout { grid-template-columns: 1fr; }
+  .help-sidebar { position: static; }
+}
+
 dl.faq dt { color: var(--accent); margin-top: 0.8rem; }
 dl.faq dd { margin-left: 1rem; color: var(--text); }
 

@@ -1,3 +1,21 @@
+bc-vigil (1.1.0-1) stable; urgency=medium
+
+  * Help pages split into per-topic pages. Instead of a single 600+
+    line scroll, the help is now 5 separate topic pages: overview,
+    integrity, dedup, admin, faq. Each page has a sticky left
+    sidebar listing the topics, with the current topic highlighted.
+  * New URLs: /help redirects to /help/overview (303); every topic
+    is reachable at /help/<slug>. Unknown slug returns 404.
+  * Per-topic fragment templates under templates/help/<topic>_<lang>.html
+    (5 topics x 2 languages = 10 fragments). The parent template
+    templates/help/page.html handles sidebar + injection.
+  * i18n keys added: help.nav.title, help.topic.<slug> (FR + EN,
+    mirror invariant maintained).
+  * Old templates help_fr.html and help_en.html removed.
+  * Audit TODO/FIXME on src/: clean (no occurrences).
+
+ -- Younes Benmoussa <younes.benmoussa@pm.me>  Tue, 21 Apr 2026 12:03:02 +0100
+
 bc-vigil (1.0.0-1) stable; urgency=medium
 
   * First "complete" release. No new features vs 0.5.7 — only doc,

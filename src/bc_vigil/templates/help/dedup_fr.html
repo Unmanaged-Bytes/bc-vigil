@@ -1,0 +1,250 @@
+<h2 id="dedup" style="border-top: 2px solid var(--border); padding-top: 1rem;">Module Doublons</h2>
+
+<section id="dedup-overview">
+<h3>Vue d'ensemble</h3>
+<p>
+Ce module délègue la découverte de fichiers identiques à
+<code>bc-duplicate</code>. Il hache en plusieurs phases (filtre par taille,
+hash de prefixe/suffixe rapide, hash complet sur les candidats) puis
+retourne un rapport JSON.
+</p>
+<p>
+BitCrafts Vigil parse ce rapport, persiste les groupes en base et offre
+deux chemins pour agir :
+</p>
+<ul>
+  <li><strong>Sélection manuelle</strong> : cocher les fichiers à
+    quarantainer, groupe par groupe.</li>
+  <li><strong>Résolution automatique</strong> : appliquer une règle de
+    conservation à tout le scan en une action.</li>
+</ul>
+<p>
+La suppression n'est <strong>jamais</strong> immédiate : les fichiers
+sélectionnés sont d'abord déplacés dans une <a href="#dedup-trash">corbeille</a>
+puis purgés après une période de rétention configurable.
+</p>
+</section>
+
+<section id="dedup-targets">
+<h3>Cibles de recherche de doublons</h3>
+<ul>
+  <li><strong>Nom</strong> unique et <strong>chemin absolu</strong>.</li>
+  <li><strong>Algorithme</strong> :
+    <code>xxh3</code> (défaut, rapide),
+    <code>xxh128</code> (plus large, très rapide),
+    <code>sha256</code> (cryptographique, plus lent mais immunisé aux
+    collisions adverses).</li>
+  <li><strong>Taille minimale</strong> : ignore les fichiers plus petits
+    (pratique pour éviter le bruit des tout petits fichiers).</li>
+  <li><strong>Inclure / exclure</strong> : mêmes conventions que pour
+    l'intégrité (matching basename).</li>
+  <li><strong>Options</strong> : inclure fichiers cachés, suivre les
+    liens symboliques, considérer les liens physiques comme doublons,
+    ne pas traverser les points de montage.</li>
+</ul>
+</section>
+
+<section id="dedup-disk">
+<h3>Support de stockage</h3>
+<p>
+À la création d'une cible, BitCrafts Vigil résout le chemin vers son
+point de montage via <code>/proc/self/mountinfo</code>, lit
+<code>/sys/block/&lt;device&gt;/queue/rotational</code> puis classe le
+support dans l'une des catégories :
+</p>
+<ul>
+  <li><strong>SSD</strong> : aucune contrainte, <code>threads=auto</code>
+    par défaut.</li>
+  <li><strong>HDD (disque mécanique)</strong> : <code>threads</code> est
+    <strong>forcé à 1</strong>, car des lectures multi-thread sur un disque
+    mécanique peuvent être 2 à 10 fois plus lentes que du mono-thread.
+    La case <em>« Forcer la valeur de threads »</em> permet tout de même
+    de conserver la valeur saisie pour les cas particuliers (très gros
+    cache RAM, SSD en cache, etc.).</li>
+  <li><strong>Amovible</strong> (clé USB, etc.) : rien de spécial, juste
+    un étiquetage dans la fiche.</li>
+  <li><strong>Système de fichiers réseau</strong> (NFS, SMB/CIFS, SSHFS,
+    9p, Ceph, AFS, GlusterFS, rclone via FUSE) : la création est
+    <strong>refusée</strong> sauf si la case
+    <em>« J'accepte le système de fichiers réseau »</em> est cochée. La
+    performance n'est pas garantie sur les FS réseau — l'opt-in est un
+    rappel explicite.</li>
+  <li><strong>Inconnu</strong> : aucune contrainte, juste affiché pour
+    information.</li>
+</ul>
+<p>
+Le support détecté est affiché sur la fiche de chaque cible, avec le
+nom du block device (<code>nvme0n1</code>, <code>sda</code>, etc.).
+</p>
+</section>
+
+<section id="dedup-schedules">
+<h3>Schedules doublons</h3>
+<p>
+Les schedules du module doublons fonctionnent exactement comme ceux de
+l'intégrité (mêmes modes, même UI, même fuseau UTC). Un schedule
+planifié qui démarre alors qu'un scan est déjà actif pour la même
+cible est simplement ignoré (voir <a href="#dedup-lock">Lock par cible</a>).
+</p>
+</section>
+
+<section id="dedup-scans">
+<h3>Analyses doublons</h3>
+<p>
+Chaque scan doublons passe par ces statuts :
+</p>
+<ul>
+  <li><span class="status status-pending">pending</span> — en file d'attente</li>
+  <li><span class="status status-running">running</span> — exécution en cours</li>
+  <li><span class="status status-ok">ok</span> — aucun doublon trouvé</li>
+  <li><span class="status status-duplicates">duplicates</span> — doublons trouvés</li>
+  <li><span class="status status-failed">failed</span> — erreur</li>
+  <li><span class="status status-cancelled">cancelled</span> — interrompu</li>
+</ul>
+<p>
+<strong>Acquitter</strong> un scan <code>duplicates</code> ne touche
+aucun fichier : c'est uniquement un marqueur visuel (le badge
+<em>Analyses doublons</em> dans la barre de navigation disparaît pour ce
+scan). Utile après avoir traité les doublons ou pour accepter que le
+doublon est légitime.
+</p>
+<p>
+La page de détail d'un scan est <strong>paginée</strong> à
+20 groupes par page, triés par taille décroissante par défaut (on cible
+les plus gros gaspillages en premier). Filtre de tri, navigation entre
+pages. Au-delà de 10 000 groupes, un bandeau recommande explicitement la
+<a href="#dedup-auto">résolution automatique</a> plutôt que le clic à clic.
+</p>
+</section>
+
+<section id="dedup-auto">
+<h3>Résolution automatique</h3>
+<p>
+Quatre règles de conservation. Chacune garde un survivant par groupe et
+propose de quarantainer le reste :
+</p>
+<ul>
+  <li><strong>Chemin le plus court</strong> : survivant = chemin
+    lexicographiquement le plus court (utile quand les copies sont plus
+    profondes dans l'arborescence que l'original).</li>
+  <li><strong>Plus ancien (mtime)</strong> : survivant = fichier avec la
+    date de modification la plus ancienne.</li>
+  <li><strong>Plus récent (mtime)</strong> : survivant = fichier avec la
+    date de modification la plus récente.</li>
+  <li><strong>Dossier prioritaire</strong> : survivant = fichier situé
+    sous le préfixe indiqué (champ <em>Dossier prioritaire</em>). Si un
+    groupe n'a aucun fichier sous ce préfixe, il est ignoré par la
+    règle.</li>
+</ul>
+<p>
+La règle s'applique à <strong>tous les groupes du scan</strong>, pas
+seulement la page visible. Le résultat ouvre la page d'aperçu que vous
+devez confirmer avec <code>DELETE</code> — rien n'est déplacé tant
+que vous n'avez pas confirmé.
+</p>
+</section>
+
+<section id="dedup-manual">
+<h3>Sélection manuelle</h3>
+<p>
+Sur la page de détail d'un scan, chaque groupe liste ses fichiers avec
+une case à cocher. Trois raccourcis pour éviter le clic à clic :
+</p>
+<ul>
+  <li>Bouton <strong>tout sauf le premier</strong> sur un groupe
+    particulier (coche tous les fichiers sauf le premier du groupe).</li>
+  <li>Bouton <strong>Cocher tout sauf le premier (page affichée)</strong>
+    en haut du formulaire (toute la page courante).</li>
+  <li>Bouton <strong>Tout décocher</strong>.</li>
+</ul>
+<p>
+La règle de sûreté : il doit rester au moins un survivant par groupe.
+Toute tentative de cocher tous les fichiers d'un groupe est rejetée
+dans l'aperçu.
+</p>
+</section>
+
+<section id="dedup-preview">
+<h3>Aperçu et confirmation</h3>
+<p>
+L'aperçu montre avant toute action :
+</p>
+<ul>
+  <li>Nombre de fichiers à déplacer, taille totale, destination.</li>
+  <li>Fichiers ignorés (avec la raison : disparu, devenu lien, taille
+    modifiée, hash différent du survivant, survivant absent, etc.).</li>
+  <li>Avertissement cross-FS si certains fichiers ne sont pas sur le
+    même système de fichiers que la corbeille (mode
+    <code>copy_unlink</code> plus lent que <code>rename</code>).</li>
+  <li>Avertissement <em>seuil bulk</em> si la sélection dépasse
+    <code>BC_VIGIL_DEDUP_DELETION_BULK_THRESHOLD</code> (500 par
+    défaut) : une case <em>« Je confirme »</em> doit être cochée.</li>
+</ul>
+<p>
+La confirmation exige de taper <code>DELETE</code> dans le champ dédié.
+À ce moment :
+</p>
+<ol>
+  <li>Un contrôle SHA-256 de TOCTOU est refait au moment du déplacement
+    pour rejeter les fichiers modifiés depuis l'aperçu.</li>
+  <li>Les fichiers sont déplacés (<code>rename</code> atomique si
+    possible, sinon <code>copy2 + fsync + unlink</code>).</li>
+  <li>Une entrée <code>DedupDeletion</code> est créée en base avec
+    l'origine, la destination dans la corbeille, le hash et l'auteur.</li>
+</ol>
+</section>
+
+<section id="dedup-trash">
+<h3>Corbeille</h3>
+<p>
+Les fichiers mis en quarantaine vivent sous le chemin défini par
+<code>BC_VIGIL_DEDUP_TRASH_DIR</code> (par défaut
+<code>&lt;data_dir&gt;/dedup/trash/</code>, mode <code>0700</code>, propriétaire
+<code>bc-vigil</code>). Chaque élément est rangé dans
+<code>scan-&lt;id&gt;/group-&lt;id&gt;/&lt;uuid&gt;/</code> avec un
+<code>meta.json</code> à côté qui décrit l'origine exacte.
+</p>
+<p>
+La page <a href="/dedup/trash">Corbeille</a> liste tous les éléments en
+quarantaine avec leur statut :
+</p>
+<ul>
+  <li><span class="status status-quarantined">quarantined</span> — en
+    attente, restaurable.</li>
+  <li><span class="status status-restored">restored</span> — restauré à
+    son emplacement d'origine.</li>
+  <li><span class="status status-purged">purged</span> — supprimé
+    définitivement.</li>
+  <li><span class="status status-failed">failed</span> — une étape a
+    échoué (audit trail conservé).</li>
+</ul>
+<p>Deux actions disponibles sur un élément en quarantaine :</p>
+<ul>
+  <li><strong>Restaurer</strong> : ramène le fichier à son chemin
+    d'origine. Refusé si un autre fichier a pris la place entre-temps.</li>
+  <li><strong>Purger</strong> : suppression immédiate et irréversible.</li>
+</ul>
+<p>
+Un job APScheduler tourne toutes les 24 h et purge automatiquement les
+éléments plus anciens que
+<code>BC_VIGIL_DEDUP_TRASH_RETENTION_DAYS</code> (7 jours par défaut).
+Mettre à <code>0</code> désactive la purge automatique.
+</p>
+</section>
+
+<section id="dedup-lock">
+<h3>Lock par cible</h3>
+<p>
+Un seul scan peut être actif (<code>pending</code> ou <code>running</code>)
+par cible à la fois. Un nouveau déclenchement manuel redirige
+silencieusement vers le scan actif ; un schedule qui essaie de partir
+alors qu'un scan est déjà en cours est <strong>ignoré</strong> (une
+ligne de log le signale).
+</p>
+<p>
+Le verrou est porté en base de données : il survit au redémarrage du
+service. Si un scan reste bloqué en <code>running</code> à la suite d'un
+crash, utilisez <strong>Forcer l'arrêt</strong> sur la fiche du scan
+pour le libérer.
+</p>
+</section>

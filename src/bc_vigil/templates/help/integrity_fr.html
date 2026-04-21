@@ -1,0 +1,168 @@
+<h2 id="integrity" style="border-top: 2px solid var(--border); padding-top: 1rem;">Module Intégrité</h2>
+
+<section id="targets">
+<h3>Cibles intégrité</h3>
+<p>Une cible intégrité représente un chemin à surveiller.</p>
+<ul>
+  <li><strong>Nom</strong> unique</li>
+  <li><strong>Chemin absolu</strong> (un <code>~</code> est résolu contre
+    le home système)</li>
+  <li><strong>Algorithme</strong> :
+    <code>sha256</code> (robuste, recommandé pour détection malveillante),
+    <code>xxh128</code> / <code>xxh3</code> (rapides, non cryptographiques,
+    recommandés pour gros volumes et corruption accidentelle),
+    <code>crc32</code> (léger, collisions plus probables, à réserver aux
+    cas simples)
+  </li>
+  <li><strong>Threads</strong> : <code>auto</code>, <code>0</code>
+    (mono-thread) ou un entier</li>
+</ul>
+<p>Depuis la fiche d'une cible :</p>
+<ul>
+  <li><strong>Dupliquer</strong> : crée une copie suffixée <em>(copie)</em>.</li>
+  <li><strong>Tout acquitter</strong> : acquitte en un clic toutes les
+    dérives non acquittées.</li>
+  <li><strong>Supprimer</strong> : efface la cible et tous ses scans,
+    schedules et événements.</li>
+</ul>
+</section>
+
+<section id="patterns">
+<h3>Include / exclude</h3>
+<p>
+Filtrage passé à <code>bc-hash</code> via <code>--include</code> /
+<code>--exclude</code>. Matching sur <strong>basename uniquement</strong>
+(pas de préfixe de chemin). Un pattern par ligne.
+</p>
+<p>Exclusions typiques :</p>
+<ul>
+  <li><code>.git</code> — coupe le store d'objets des dépôts git</li>
+  <li><code>node_modules</code> — dépendances JS</li>
+  <li><code>*.log</code>, <code>*.tmp</code> — fichiers volatiles</li>
+  <li><code>__pycache__</code>, <code>.venv</code> — artefacts Python</li>
+</ul>
+<p>
+Exclure un <em>répertoire</em> prune tout son sous-arbre avant descente,
+ce qui fait gagner beaucoup de temps et de mémoire sur les gros dépôts.
+</p>
+</section>
+
+<section id="baseline">
+<h3>Baseline</h3>
+<ul>
+  <li>Le premier scan réussi devient automatiquement la baseline.</li>
+  <li>Tant qu'il n'y a pas de baseline, un scan ne détecte aucune dérive.</li>
+  <li>Le bouton <strong>Promouvoir baseline</strong> (fiche d'un scan
+    <code>ok</code> ou <code>drift</code>) fige le scan comme nouvelle
+    référence.</li>
+</ul>
+<p>La baseline courante d'une cible est protégée contre la purge automatique.</p>
+</section>
+
+<section id="schedules">
+<h3>Schedules</h3>
+<p>
+Déclenchement automatique en arrière-plan (APScheduler, fuseau UTC).
+Six modes :
+</p>
+<ul>
+  <li>Toutes les X minutes (1–59)</li>
+  <li>Chaque heure à une minute donnée</li>
+  <li>Chaque jour à une heure donnée</li>
+  <li>Chaque semaine sur une sélection de jours</li>
+  <li>Chaque mois le N<sup>e</sup> jour</li>
+  <li>Expression cron à 5 champs pour les cas avancés</li>
+</ul>
+<p>
+L'aperçu affiche les 5 prochaines exécutions pendant la saisie. Un
+schedule désactivé reste en base mais n'est pas enregistré auprès du
+scheduler.
+</p>
+</section>
+
+<section id="stuck">
+<h3>Schedule bloqué</h3>
+<p>
+Sur la fiche d'une cible, chaque schedule affiche la date du dernier run
+réel. Si aucun run programmé n'a eu lieu depuis plus de
+<strong>deux fois la période</strong> (par exemple, plus de 2 jours pour
+un schedule quotidien), il est étiqueté
+<span class="event event-removed">stuck</span>. Causes typiques :
+service à l'arrêt, échecs successifs du binaire, scans restés en
+<code>running</code> sans annulation.
+</p>
+</section>
+
+<section id="scans">
+<h3>Scans intégrité et événements</h3>
+<p>Chaque scan passe par ces statuts :</p>
+<ul>
+  <li><span class="status status-pending">pending</span> — en file d'attente</li>
+  <li><span class="status status-running">running</span> — exécution en cours</li>
+  <li><span class="status status-ok">ok</span> — hashé, aucune dérive</li>
+  <li><span class="status status-drift">drift</span> — dérive détectée</li>
+  <li><span class="status status-failed">failed</span> — erreur binaire ou I/O</li>
+  <li><span class="status status-cancelled">cancelled</span> — interrompu</li>
+</ul>
+<p>Types d'événements :</p>
+<ul>
+  <li><span class="event event-added">added</span> — fichier présent maintenant, absent de la baseline</li>
+  <li><span class="event event-removed">removed</span> — présent dans la baseline, absent maintenant</li>
+  <li><span class="event event-modified">modified</span> — digest différent</li>
+</ul>
+<p>
+<strong>Peak RSS</strong> : pic de mémoire résidente du process
+<code>bc-hash</code> pendant le scan. Échantillonné via
+<code>/proc/&lt;pid&gt;/status</code>.
+</p>
+</section>
+
+<section id="scan-filters">
+<h3>Filtrer et acquitter en masse</h3>
+<p>L'onglet <a href="/scans">Scans</a> propose :</p>
+<ul>
+  <li>Filtres par statut et par cible.</li>
+  <li>Actualisation automatique toutes les 3 secondes lorsqu'un scan est
+    en cours.</li>
+  <li>Bouton <strong>Tout acquitter</strong>, global ou par cible.</li>
+</ul>
+<p>
+<strong>Acquitter</strong> marque la dérive comme vue sans toucher à la
+baseline : un futur scan retrouvera la même dérive.
+<strong>Promouvoir</strong> adopte le scan comme nouvelle référence, la
+dérive disparaît pour les scans suivants.
+</p>
+</section>
+
+<section id="export">
+<h3>Export CSV</h3>
+<p>
+Sur la fiche d'un scan avec dérive, le bouton <strong>Export CSV</strong>
+télécharge <code>scan-&lt;id&gt;-events.csv</code> au format :
+</p>
+<pre><code>scan_id,target,event_type,path,old_digest,new_digest</code></pre>
+</section>
+
+<section id="cancel">
+<h3>Annuler un scan</h3>
+<ul>
+  <li><strong>Annuler</strong> : SIGTERM, scan marqué
+    <code>cancelled</code>, digest partiel supprimé.</li>
+  <li><strong>Forcer l'arrêt</strong> : SIGKILL, pour les cas où SIGTERM
+    ne suffit pas.</li>
+</ul>
+</section>
+
+<section id="retention">
+<h3>Rétention / purge automatique</h3>
+<p>Variable <code>BC_VIGIL_SCAN_RETENTION_DAYS</code> :</p>
+<ul>
+  <li><code>0</code> (défaut) — aucune purge.</li>
+  <li><code>N &gt; 0</code> — un job tourne toutes les 24 h et supprime
+    les scans terminés (et leurs digests) plus vieux que
+    <code>now - N</code> jours.</li>
+</ul>
+<p>
+La baseline courante et les scans non terminés sont toujours protégés.
+</p>
+</section>

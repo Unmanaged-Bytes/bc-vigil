@@ -1,0 +1,39 @@
+<section id="intro">
+<h2>Présentation</h2>
+<p>
+BitCrafts Vigil est une interface web autour de deux outils en ligne de
+commande :
+</p>
+<ul>
+  <li><code>bc-hash</code> pour le module <strong>Intégrité</strong> : hache
+    une arborescence et compare à une baseline pour détecter des dérives
+    (ajouts, suppressions, modifications).</li>
+  <li><code>bc-duplicate</code> pour le module <strong>Doublons</strong> :
+    trouve des fichiers identiques, permet de les mettre en quarantaine
+    puis de les restaurer ou de les supprimer définitivement.</li>
+</ul>
+<p>
+Les deux modules partagent la même base de données SQLite, les mêmes
+planificateurs cron, le même système de sauvegarde/restauration et la
+même UI FR/EN. Deux badges dans la barre de navigation comptent les
+alertes non acquittées (dérives d'intégrité et analyses avec doublons).
+</p>
+</section>
+
+<section id="workflow">
+<h2>Prise en main</h2>
+<ol>
+  <li>Créer une <strong>cible intégrité</strong> et/ou une <strong>cible
+    de recherche de doublons</strong> (section <a href="/targets">Cibles</a>
+    pour l'intégrité, <a href="/dedup/targets">Doublons</a> pour la
+    déduplication).</li>
+  <li>Lancer un premier scan manuel : côté intégrité il devient la
+    <strong>baseline</strong>; côté doublons il produit un rapport avec
+    les groupes de fichiers identiques.</li>
+  <li>Ajouter éventuellement un ou plusieurs <strong>schedules</strong>
+    pour automatiser les scans.</li>
+  <li>Agir sur les résultats : <strong>promouvoir</strong> ou
+    <strong>acquitter</strong> une dérive d'intégrité,
+    <strong>mettre en quarantaine</strong> des doublons.</li>
+</ol>
+</section>

@@ -1,0 +1,222 @@
+<h2 id="dedup" style="border-top: 2px solid var(--border); padding-top: 1rem;">Duplicates module</h2>
+
+<section id="dedup-overview">
+<h3>Overview</h3>
+<p>
+This module delegates duplicate discovery to <code>bc-duplicate</code>.
+It hashes in multiple phases (size filter, prefix/suffix fast hash,
+full hash on candidates) and returns a JSON report.
+</p>
+<p>
+BitCrafts Vigil parses that report, persists duplicate groups in DB and
+offers two action paths:
+</p>
+<ul>
+  <li><strong>Manual selection</strong>: tick files to quarantine, group
+    by group.</li>
+  <li><strong>Auto-resolve</strong>: apply a keep-rule to the whole scan
+    in a single action.</li>
+</ul>
+<p>
+Deletion is <strong>never</strong> immediate: selected files are first
+moved to a <a href="#dedup-trash">trash</a> then purged after a
+configurable retention period.
+</p>
+</section>
+
+<section id="dedup-targets">
+<h3>Dedup targets</h3>
+<ul>
+  <li>Unique <strong>name</strong> and absolute <strong>path</strong>.</li>
+  <li><strong>Algorithm</strong>:
+    <code>xxh3</code> (default, fast),
+    <code>xxh128</code> (wider hash, very fast),
+    <code>sha256</code> (cryptographic, slower but collision-free).</li>
+  <li><strong>Minimum size</strong>: skip files smaller than that (cuts
+    the tiny-file noise).</li>
+  <li><strong>Include / exclude</strong>: same conventions as for
+    integrity (basename matching).</li>
+  <li><strong>Options</strong>: include hidden files, follow symlinks,
+    treat hardlinks as duplicates, do not cross filesystem boundaries.</li>
+</ul>
+</section>
+
+<section id="dedup-disk">
+<h3>Storage backend</h3>
+<p>
+On target creation, BitCrafts Vigil resolves the path to its mount
+point via <code>/proc/self/mountinfo</code>, reads
+<code>/sys/block/&lt;device&gt;/queue/rotational</code>, and classifies
+the backend:
+</p>
+<ul>
+  <li><strong>SSD</strong>: no constraint, <code>threads=auto</code> by
+    default.</li>
+  <li><strong>HDD (rotational)</strong>: <code>threads</code> is
+    <strong>forced to 1</strong>. Multi-threaded reads on spinning rust
+    can be 2 to 10 times slower than single-threaded. Tick
+    <em>"Force threads value"</em> to keep your input anyway (useful for
+    very large RAM caches, SSD caches, etc.).</li>
+  <li><strong>Removable</strong> (USB, etc.): only a label on the
+    target page.</li>
+  <li><strong>Network filesystem</strong> (NFS, SMB/CIFS, SSHFS, 9p,
+    Ceph, AFS, GlusterFS, rclone via FUSE): target creation is
+    <strong>refused</strong> unless <em>"Accept network filesystem"</em>
+    is ticked. Performance is not guaranteed over network FS; the
+    opt-in is an explicit reminder.</li>
+  <li><strong>Unknown</strong>: displayed as-is, no constraint.</li>
+</ul>
+<p>
+The detected backend is shown on each target page with the block device
+name (<code>nvme0n1</code>, <code>sda</code>, …).
+</p>
+</section>
+
+<section id="dedup-schedules">
+<h3>Dedup schedules</h3>
+<p>
+Dedup schedules work exactly like integrity ones (same modes, same UI,
+same UTC timezone). If a scheduled run fires while a scan is already
+active for the same target, it is simply skipped (see
+<a href="#dedup-lock">Per-target lock</a>).
+</p>
+</section>
+
+<section id="dedup-scans">
+<h3>Dedup scans</h3>
+<p>Dedup scan statuses:</p>
+<ul>
+  <li><span class="status status-pending">pending</span> — queued</li>
+  <li><span class="status status-running">running</span> — executing</li>
+  <li><span class="status status-ok">ok</span> — no duplicates</li>
+  <li><span class="status status-duplicates">duplicates</span> — duplicates found</li>
+  <li><span class="status status-failed">failed</span> — error</li>
+  <li><span class="status status-cancelled">cancelled</span> — interrupted</li>
+</ul>
+<p>
+<strong>Acknowledging</strong> a <code>duplicates</code> scan does not
+touch any file: it only clears the navbar badge. Useful once the
+duplicates have been handled or explicitly accepted as legitimate.
+</p>
+<p>
+The scan detail page is <strong>paginated</strong>: 20 groups per page,
+sorted by size descending by default (so you focus on the biggest wins
+first). Sort toggle and page navigation are provided. Above 10,000
+groups, a banner explicitly recommends using
+<a href="#dedup-auto">auto-resolve</a> rather than manual ticking.
+</p>
+</section>
+
+<section id="dedup-auto">
+<h3>Auto-resolve</h3>
+<p>
+Four keep-rules. Each picks one survivor per group and proposes to
+quarantine the rest:
+</p>
+<ul>
+  <li><strong>Shortest path</strong>: survivor = lexicographically
+    shortest path (handy when copies live deeper than the original).</li>
+  <li><strong>Oldest (mtime)</strong>: survivor = file with the oldest
+    modification timestamp.</li>
+  <li><strong>Newest (mtime)</strong>: survivor = file with the newest
+    modification timestamp.</li>
+  <li><strong>Priority folder</strong>: survivor = file under the given
+    prefix (<em>Priority folder</em> field). Groups with no file under
+    that prefix are skipped.</li>
+</ul>
+<p>
+The rule is applied to <strong>all groups in the scan</strong>, not only
+the visible page. The result opens the preview page which you still
+have to confirm with <code>DELETE</code> — nothing moves until that
+confirmation.
+</p>
+</section>
+
+<section id="dedup-manual">
+<h3>Manual selection</h3>
+<p>
+On the scan detail page, each group lists its files with a checkbox.
+Three shortcuts to avoid clicking one-by-one:
+</p>
+<ul>
+  <li><strong>all but first</strong> button on a specific group.</li>
+  <li><strong>Tick all but first (visible page)</strong> at the top of
+    the form (applies to the current page only).</li>
+  <li><strong>Clear all</strong>.</li>
+</ul>
+<p>
+Safety rule: at least one survivor per group. Any attempt to tick every
+file of a group is rejected in the preview.
+</p>
+</section>
+
+<section id="dedup-preview">
+<h3>Preview and confirm</h3>
+<p>Before any action, the preview shows:</p>
+<ul>
+  <li>Number of files to move, total size, destination.</li>
+  <li>Skipped files with the reason (gone, became symlink, size drifted,
+    hash no longer matches survivor, survivor missing, etc.).</li>
+  <li>Cross-FS warning if some files are not on the same filesystem as
+    the trash (<code>copy_unlink</code> mode, slower than
+    <code>rename</code>).</li>
+  <li>Bulk-threshold warning if the selection exceeds
+    <code>BC_VIGIL_DEDUP_DELETION_BULK_THRESHOLD</code> (500 by default):
+    an explicit <em>"I confirm"</em> box must be ticked.</li>
+</ul>
+<p>Confirmation requires typing <code>DELETE</code>. At that point:</p>
+<ol>
+  <li>A SHA-256 TOCTOU check is redone at move-time, files modified
+    since the preview are rejected.</li>
+  <li>Files are moved (<code>rename</code> atomic if possible, else
+    <code>copy2 + fsync + unlink</code>).</li>
+  <li>A <code>DedupDeletion</code> row is persisted with origin,
+    destination, hash and caller.</li>
+</ol>
+</section>
+
+<section id="dedup-trash">
+<h3>Trash</h3>
+<p>
+Quarantined files live under <code>BC_VIGIL_DEDUP_TRASH_DIR</code>
+(default <code>&lt;data_dir&gt;/dedup/trash/</code>, mode <code>0700</code>,
+owner <code>bc-vigil</code>). Each item lives in
+<code>scan-&lt;id&gt;/group-&lt;id&gt;/&lt;uuid&gt;/</code> with a
+<code>meta.json</code> describing the original.
+</p>
+<p>
+The <a href="/dedup/trash">Trash</a> page lists all quarantined items with:
+</p>
+<ul>
+  <li><span class="status status-quarantined">quarantined</span> — awaiting, restorable.</li>
+  <li><span class="status status-restored">restored</span> — returned to original location.</li>
+  <li><span class="status status-purged">purged</span> — permanently deleted.</li>
+  <li><span class="status status-failed">failed</span> — a step failed (audit trail kept).</li>
+</ul>
+<p>Two actions on quarantined items:</p>
+<ul>
+  <li><strong>Restore</strong>: move the file back. Refused if another
+    file now sits at the original path.</li>
+  <li><strong>Purge</strong>: immediate, irreversible delete.</li>
+</ul>
+<p>
+An APScheduler job runs every 24h and automatically purges items older
+than <code>BC_VIGIL_DEDUP_TRASH_RETENTION_DAYS</code> (7 days by
+default). Set to <code>0</code> to disable automatic purge.
+</p>
+</section>
+
+<section id="dedup-lock">
+<h3>Per-target lock</h3>
+<p>
+Only one scan may be active (<code>pending</code>/<code>running</code>)
+per target at a time. A new manual trigger silently redirects to the
+active scan; a scheduled run that tries to fire while another scan is
+active is <strong>skipped</strong> (a log line is emitted).
+</p>
+<p>
+The lock is stored in the DB, so it survives restarts. If a scan
+remains stuck in <code>running</code> after a crash, use
+<strong>Force stop</strong> from its detail page to free it.
+</p>
+</section>

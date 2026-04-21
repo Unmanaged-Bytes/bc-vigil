@@ -1,0 +1,37 @@
+<section id="intro">
+<h2>Overview</h2>
+<p>
+BitCrafts Vigil is a web frontend around two command-line tools:
+</p>
+<ul>
+  <li><code>bc-hash</code> for the <strong>Integrity</strong> module:
+    hashes a directory tree and compares with a baseline to detect drifts
+    (added, removed, modified files).</li>
+  <li><code>bc-duplicate</code> for the <strong>Duplicates</strong>
+    module: finds identical files, lets you quarantine them and later
+    restore or permanently purge.</li>
+</ul>
+<p>
+Both modules share the same SQLite database, cron schedulers, backup /
+restore machinery and FR/EN UI. Two badges in the navbar count
+unacknowledged alerts (integrity drifts and dedup scans with duplicates).
+</p>
+</section>
+
+<section id="workflow">
+<h2>Getting started</h2>
+<ol>
+  <li>Create an <strong>integrity target</strong> and/or a
+    <strong>dedup target</strong>
+    (<a href="/targets">Targets</a> for integrity,
+    <a href="/dedup/targets">Duplicates</a> for dedup).</li>
+  <li>Run a first manual scan: the integrity side adopts it as the
+    <strong>baseline</strong>; the dedup side produces a report with
+    duplicate groups.</li>
+  <li>Optionally add one or more <strong>schedules</strong> to automate
+    scans.</li>
+  <li>Act on results: <strong>promote</strong> or
+    <strong>acknowledge</strong> an integrity drift,
+    <strong>quarantine</strong> selected duplicates.</li>
+</ol>
+</section>

@@ -104,7 +104,7 @@ def test_help_page_serves_english_template(tmp_path):
     from fastapi.testclient import TestClient
     with TestClient(create_app()) as client:
         client.cookies.set("bcv_lang", "en")
-        r = client.get("/help")
+        r = client.get("/help/overview")
         assert r.status_code == 200
         assert "Getting started" in r.text
 
@@ -113,6 +113,6 @@ def test_help_page_serves_french_by_default(tmp_path):
     from bc_vigil.app import create_app
     from fastapi.testclient import TestClient
     with TestClient(create_app()) as client:
-        r = client.get("/help")
+        r = client.get("/help/overview")
         assert r.status_code == 200
         assert "Prise en main" in r.text

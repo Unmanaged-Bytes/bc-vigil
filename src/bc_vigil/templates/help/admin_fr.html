@@ -1,0 +1,73 @@
+<h2 id="admin" style="border-top: 2px solid var(--border); padding-top: 1rem;">Administration</h2>
+
+<section id="admin-db">
+<h3>Sauvegarde / Restauration / Réinitialisation</h3>
+<p>Onglet <a href="/admin">Admin</a>. Trois actions :</p>
+<ul>
+  <li><strong>Sauvegarde</strong> : télécharge un <code>.tar.gz</code>
+    contenant la DB SQLite, les digests d'intégrité et les rapports JSON
+    des scans doublons. Un <code>PRAGMA wal_checkpoint(TRUNCATE)</code>
+    est forcé avant l'archivage pour garantir que le fichier DB est
+    complet.</li>
+  <li><strong>Restauration</strong> : upload d'une archive précédemment
+    produite. Remplace DB + digests + répertoire doublons + corbeille.
+    Un snapshot automatique de l'état courant est pris avant.</li>
+  <li><strong>Réinitialisation</strong> : efface toute la base et tous
+    les fichiers liés (digests, rapports doublons, corbeille). Un
+    snapshot automatique est également pris avant.</li>
+</ul>
+<p>
+Les deux dernières opérations sont <strong>bloquées</strong> tant qu'un
+scan intégrité ou doublons est encore <code>pending</code> ou
+<code>running</code>. Les schedulers sont arrêtés le temps de
+l'opération puis redémarrés automatiquement.
+</p>
+</section>
+
+<section id="admin-wal">
+<h3>Concurrence (WAL)</h3>
+<p>
+La base SQLite est ouverte en mode <code>journal_mode=WAL</code>,
+<code>synchronous=NORMAL</code>, <code>busy_timeout=5000</code>. Cela
+permet aux lectures de l'UI de rester rapides pendant les écritures
+lourdes (persistance des groupes à la fin d'un gros scan).
+</p>
+<p>
+Les fichiers <code>bc-vigil.sqlite-wal</code> et
+<code>bc-vigil.sqlite-shm</code> sont créés automatiquement par SQLite —
+c'est normal et attendu en mode WAL. Le backup appelle un checkpoint
+explicite pour que l'archive ne contienne que le fichier principal.
+</p>
+</section>
+
+<section id="storage">
+<h3>Stockage (module)</h3>
+<p>
+L'onglet <a href="/storage">Stockage</a> présente l'utilisation disque
+par point de montage : total, utilisé, libre, type de FS. C'est
+purement informatif, aucun impact sur les scans.
+</p>
+</section>
+
+<section id="config">
+<h3>Configuration (variables d'environnement)</h3>
+<table>
+  <thead><tr><th>Variable</th><th>Défaut</th><th>Rôle</th></tr></thead>
+  <tbody>
+    <tr><td><code>BC_VIGIL_HOST</code></td><td><code>127.0.0.1</code></td><td>adresse d'écoute</td></tr>
+    <tr><td><code>BC_VIGIL_PORT</code></td><td><code>8080</code></td><td>port d'écoute</td></tr>
+    <tr><td><code>BC_VIGIL_DATA_DIR</code></td><td><code>./var</code> (paquet : <code>/var/lib/bc-vigil</code>)</td><td>dossier racine (DB, digests, doublons, corbeille par défaut)</td></tr>
+    <tr><td><code>BC_VIGIL_BC_HASH_BINARY</code></td><td><code>bc-hash</code></td><td>chemin du binaire pour l'intégrité</td></tr>
+    <tr><td><code>BC_VIGIL_BC_DUPLICATE_BINARY</code></td><td><code>bc-duplicate</code></td><td>chemin du binaire pour la déduplication</td></tr>
+    <tr><td><code>BC_VIGIL_DEFAULT_ALGORITHM</code></td><td><code>sha256</code></td><td>algorithme par défaut pour les nouvelles cibles intégrité</td></tr>
+    <tr><td><code>BC_VIGIL_DEFAULT_THREADS</code></td><td><code>auto</code></td><td>valeur <em>threads</em> par défaut (avant détection HDD)</td></tr>
+    <tr><td><code>BC_VIGIL_MAX_PARALLEL_SCANS</code></td><td><code>2</code></td><td>scans concurrents maxi (partagé intégrité + doublons)</td></tr>
+    <tr><td><code>BC_VIGIL_DISPLAY_TZ</code></td><td><code>UTC</code></td><td>fuseau d'affichage (les données restent UTC en base)</td></tr>
+    <tr><td><code>BC_VIGIL_SCAN_RETENTION_DAYS</code></td><td><code>0</code></td><td>rétention des scans intégrité et doublons terminés (jours)</td></tr>
+    <tr><td><code>BC_VIGIL_DEDUP_TRASH_DIR</code></td><td>vide</td><td>chemin de la corbeille ; vide = <code>&lt;data_dir&gt;/dedup/trash</code></td></tr>
+    <tr><td><code>BC_VIGIL_DEDUP_TRASH_RETENTION_DAYS</code></td><td><code>7</code></td><td>rétention de la corbeille avant purge automatique (jours)</td></tr>
+    <tr><td><code>BC_VIGIL_DEDUP_DELETION_BULK_THRESHOLD</code></td><td><code>500</code></td><td>au-delà, une case d'opt-in supplémentaire est exigée à la confirmation</td></tr>
+  </tbody>
+</table>
+<p class="hint">Fuseau courant : <code>{{ display_tz() }}</code></p>
+</section>

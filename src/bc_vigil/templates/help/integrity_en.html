@@ -1,0 +1,161 @@
+<h2 id="integrity" style="border-top: 2px solid var(--border); padding-top: 1rem;">Integrity module</h2>
+
+<section id="targets">
+<h3>Integrity targets</h3>
+<p>An integrity target represents a path to monitor.</p>
+<ul>
+  <li>Unique <strong>name</strong>.</li>
+  <li>Absolute <strong>path</strong> (<code>~</code> resolves against the
+    system user's home).</li>
+  <li><strong>Algorithm</strong>:
+    <code>sha256</code> (robust, recommended for malicious-change
+    detection),
+    <code>xxh128</code> / <code>xxh3</code> (fast, non-cryptographic,
+    recommended for large volumes / accidental corruption),
+    <code>crc32</code> (light, collision-prone, only for trivial cases).</li>
+  <li><strong>Threads</strong>: <code>auto</code>, <code>0</code>
+    (single-threaded) or an integer.</li>
+</ul>
+<p>From the target page:</p>
+<ul>
+  <li><strong>Duplicate</strong>: clones the target with the
+    <em>(copy)</em> suffix.</li>
+  <li><strong>Ack all</strong>: acknowledges every unacknowledged drift
+    at once.</li>
+  <li><strong>Delete</strong>: removes the target and all its scans,
+    schedules, events.</li>
+</ul>
+</section>
+
+<section id="patterns">
+<h3>Include / exclude</h3>
+<p>
+Filters passed to <code>bc-hash</code> as <code>--include</code> /
+<code>--exclude</code>. Matched on <strong>basename only</strong> (no
+path prefix). One pattern per line.
+</p>
+<p>Common exclusions:</p>
+<ul>
+  <li><code>.git</code> — prunes the git object store</li>
+  <li><code>node_modules</code> — JS dependencies</li>
+  <li><code>*.log</code>, <code>*.tmp</code> — volatile files</li>
+  <li><code>__pycache__</code>, <code>.venv</code> — Python artefacts</li>
+</ul>
+<p>
+Excluding a <em>directory</em> prunes the whole subtree before descent,
+which saves a lot of time and memory on large repos.
+</p>
+</section>
+
+<section id="baseline">
+<h3>Baseline</h3>
+<ul>
+  <li>The first successful scan becomes the baseline automatically.</li>
+  <li>Without a baseline, no scan reports any drift.</li>
+  <li>The <strong>Promote baseline</strong> button on any
+    <code>ok</code>/<code>drift</code> scan page freezes that scan as
+    the new reference.</li>
+</ul>
+<p>The current baseline is protected from automatic retention purge.</p>
+</section>
+
+<section id="schedules">
+<h3>Schedules</h3>
+<p>
+Background triggers (APScheduler, UTC timezone). Six modes:
+</p>
+<ul>
+  <li>Every X minutes (1–59)</li>
+  <li>Every hour at a specific minute</li>
+  <li>Daily at a specific time</li>
+  <li>Weekly on selected days</li>
+  <li>Monthly on the N<sup>th</sup> day</li>
+  <li>5-field cron expression for advanced cases</li>
+</ul>
+<p>
+The preview shows the next 5 runs as you type. A disabled schedule is
+kept in DB but not registered with the scheduler.
+</p>
+</section>
+
+<section id="stuck">
+<h3>Stuck schedule</h3>
+<p>
+On the target page, each schedule shows the last actual scheduled run.
+If no scheduled run has occurred for more than <strong>twice the
+period</strong> (e.g. more than 2 days for a daily schedule), it is
+labelled <span class="event event-removed">stuck</span>. Typical causes:
+service was down, the binary kept failing, scans stayed in
+<code>running</code> without cancellation.
+</p>
+</section>
+
+<section id="scans">
+<h3>Integrity scans and events</h3>
+<p>Scan statuses:</p>
+<ul>
+  <li><span class="status status-pending">pending</span> — queued</li>
+  <li><span class="status status-running">running</span> — executing</li>
+  <li><span class="status status-ok">ok</span> — hashed, no drift</li>
+  <li><span class="status status-drift">drift</span> — drift detected</li>
+  <li><span class="status status-failed">failed</span> — binary or I/O error</li>
+  <li><span class="status status-cancelled">cancelled</span> — interrupted</li>
+</ul>
+<p>Event types:</p>
+<ul>
+  <li><span class="event event-added">added</span> — present now, absent from baseline</li>
+  <li><span class="event event-removed">removed</span> — present in baseline, absent now</li>
+  <li><span class="event event-modified">modified</span> — digest changed</li>
+</ul>
+<p>
+<strong>Peak RSS</strong>: resident-memory peak of the
+<code>bc-hash</code> process during the scan, sampled from
+<code>/proc/&lt;pid&gt;/status</code>.
+</p>
+</section>
+
+<section id="scan-filters">
+<h3>Filter and ack in bulk</h3>
+<p>The <a href="/scans">Scans</a> tab offers:</p>
+<ul>
+  <li>Status and target filters.</li>
+  <li>Automatic refresh every 3 seconds when a scan is active.</li>
+  <li><strong>Ack all</strong> button, global or per target.</li>
+</ul>
+<p>
+<strong>Acknowledge</strong> marks the drift as seen without touching
+the baseline, so a future scan will report the same drift.
+<strong>Promote</strong> adopts the scan as the new reference, the
+drift disappears for subsequent scans.
+</p>
+</section>
+
+<section id="export">
+<h3>CSV export</h3>
+<p>
+On a scan-with-drift page, the <strong>Export CSV</strong> button
+downloads <code>scan-&lt;id&gt;-events.csv</code>:
+</p>
+<pre><code>scan_id,target,event_type,path,old_digest,new_digest</code></pre>
+</section>
+
+<section id="cancel">
+<h3>Cancel a scan</h3>
+<ul>
+  <li><strong>Cancel</strong>: SIGTERM, scan marked
+    <code>cancelled</code>, partial digest removed.</li>
+  <li><strong>Force stop</strong>: SIGKILL, for cases where SIGTERM does
+    not suffice.</li>
+</ul>
+</section>
+
+<section id="retention">
+<h3>Retention / automatic purge</h3>
+<p><code>BC_VIGIL_SCAN_RETENTION_DAYS</code>:</p>
+<ul>
+  <li><code>0</code> (default) — no purge.</li>
+  <li><code>N &gt; 0</code> — a job runs every 24h and deletes finished
+    scans (and their digests) older than <code>now - N</code> days.</li>
+</ul>
+<p>Current baseline and non-finished scans are always protected.</p>
+</section>

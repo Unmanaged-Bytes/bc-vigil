@@ -1,0 +1,64 @@
+<section id="faq">
+<h2>FAQ</h2>
+<dl class="faq">
+  <dt>Pourquoi mon premier scan d'intégrité n'affiche aucune dérive ?</dt>
+  <dd>Attendu : le premier scan devient la baseline, il n'y a rien à
+    comparer.</dd>
+
+  <dt>Quelle différence entre acquitter et promouvoir une baseline ?</dt>
+  <dd><strong>Acquitter</strong> marque la dérive comme vue sans toucher
+    à la baseline ; un futur scan retrouvera la même dérive.
+    <strong>Promouvoir</strong> adopte le scan comme nouvelle référence :
+    la dérive disparaît pour les scans suivants.</dd>
+
+  <dt>Acquitter un scan doublons supprime-t-il des fichiers ?</dt>
+  <dd>Non. Acquitter est uniquement un marqueur visuel qui vide le badge
+    de la barre de navigation. Pour libérer de la place il faut passer
+    par la <strong>mise en quarantaine</strong> puis la
+    <strong>purge</strong> (manuelle ou automatique).</dd>
+
+  <dt>Pourquoi <em>threads</em> est forcé à 1 sur ma cible ?</dt>
+  <dd>BitCrafts Vigil a détecté un disque mécanique (HDD) via
+    <code>/sys/block/&lt;dev&gt;/queue/rotational</code>. Sur HDD, lire
+    plusieurs fichiers en parallèle produit du thrashing de têtes et
+    peut être 2 à 10 fois plus lent que mono-thread. Cochez
+    <em>« Forcer la valeur de threads »</em> à la création si vous
+    voulez tout de même imposer une valeur.</dd>
+
+  <dt>Pourquoi la création de cible a été refusée sur mon NFS ?</dt>
+  <dd>Les systèmes de fichiers réseau (NFS, SMB, SSHFS, 9p, Ceph, AFS,
+    GlusterFS, rclone) ne sont pas garantis en performance. Cocher
+    <em>« J'accepte le système de fichiers réseau »</em> lève le refus.</dd>
+
+  <dt>J'ai lancé un scan mais rien ne se passe — il y a déjà un scan en cours.</dt>
+  <dd>Le lock par cible bloque un second scan simultané. Le lien de la
+    redirection vous amène directement au scan actif. Pour libérer un
+    scan coincé : <em>Forcer l'arrêt</em> depuis sa page de détail.</dd>
+
+  <dt>Peut-on annuler une mise en quarantaine ?</dt>
+  <dd>Oui, tant que le fichier n'est pas purgé : bouton
+    <strong>Restaurer</strong> depuis <a href="/dedup/trash">la corbeille</a>.
+    La restauration échoue si un autre fichier a pris la place entre-temps.</dd>
+
+  <dt>La corbeille remplit <code>/var/lib</code>, que faire ?</dt>
+  <dd>Pointer <code>BC_VIGIL_DEDUP_TRASH_DIR</code> vers un disque plus
+    grand (même FS que les cibles scannées, idéalement, pour rester en
+    <code>rename</code> atomique).</dd>
+
+  <dt>Un scan semble plus lent via l'UI qu'en ligne de commande.</dt>
+  <dd>L'UI ajoute le parsing du rapport JSON et la persistance des
+    groupes en base. Le surcoût est proportionnel au nombre de groupes.
+    Depuis la 0.5.0 la persistance est faite par lots pour garder l'UI
+    réactive pendant la fin du scan.</dd>
+
+  <dt>Comment consommer les groupes d'un scan depuis un script ?</dt>
+  <dd><code>GET /dedup/scans/&lt;id&gt;/groups.csv</code> retourne un
+    CSV (<code>scan_id,target,group_id,size,path</code>) utilisable en
+    curl + jq/csvkit.</dd>
+
+  <dt>Un schedule est étiqueté "stuck", que faire ?</dt>
+  <dd>Vérifier que BitCrafts Vigil tourne sans interruption, regarder
+    les scans récents de la cible pour identifier des échecs ou des
+    scans bloqués. Un redémarrage du service réinitialise les jobs.</dd>
+</dl>
+</section>

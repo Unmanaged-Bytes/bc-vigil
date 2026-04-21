@@ -24,12 +24,32 @@ def test_help_page_returns_200(tmp_path):
     from bc_vigil.app import create_app
     from fastapi.testclient import TestClient
     with TestClient(create_app()) as client:
-        r = client.get("/help")
+        # /help redirects to /help/overview
+        r = client.get("/help", follow_redirects=False)
+        assert r.status_code == 303
+        assert r.headers["location"] == "/help/overview"
+        r = client.get("/help/overview")
         assert r.status_code == 200
         assert "Prise en main" in r.text
+        # Each topic has its own page; sidebar links to the others
+        assert 'href="/help/integrity"' in r.text
+        assert 'href="/help/dedup"' in r.text
+        assert 'href="/help/faq"' in r.text
+        # Topic-specific content lives on the topic page
+        r = client.get("/help/integrity")
+        assert r.status_code == 200
         assert "Include / exclude" in r.text
-        assert "Doublons" in r.text
+        r = client.get("/help/dedup")
+        assert r.status_code == 200
         assert "Corbeille" in r.text
+
+
+def test_help_unknown_topic_returns_404(tmp_path):
+    from bc_vigil.app import create_app
+    from fastapi.testclient import TestClient
+    with TestClient(create_app()) as client:
+        r = client.get("/help/does-not-exist")
+        assert r.status_code == 404
 
 
 def test_admin_page_returns_200(tmp_path):

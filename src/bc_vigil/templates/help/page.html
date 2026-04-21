@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% set topics = ["overview", "integrity", "dedup", "admin", "faq"] %}
+{% set lang = current_lang(request) %}
+{% block title %}{{ t(request, "help.title") }} — {{ t(request, "help.topic." + current_topic) }} — {{ t(request, "app.title") }}{% endblock %}
+{% block content %}
+<div class="help-layout">
+  <aside class="help-sidebar">
+    <h3>{{ t(request, "help.nav.title") }}</h3>
+    <nav>
+      {% for slug in topics %}
+        <a href="/help/{{ slug }}"
+           class="{% if slug == current_topic %}active{% endif %}">
+          {{ t(request, "help.topic." + slug) }}
+        </a>
+      {% endfor %}
+    </nav>
+  </aside>
+  <section class="help-content">
+    <h1>{{ t(request, "help.title") }} — {{ t(request, "help.topic." + current_topic) }}</h1>
+    {% include "help/" + current_topic + "_" + lang + ".html" %}
+  </section>
+</div>
+{% endblock %}

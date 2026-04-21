@@ -1,0 +1,71 @@
+<h2 id="admin" style="border-top: 2px solid var(--border); padding-top: 1rem;">Administration</h2>
+
+<section id="admin-db">
+<h3>Backup / Restore / Reset</h3>
+<p><a href="/admin">Admin</a> tab. Three actions:</p>
+<ul>
+  <li><strong>Backup</strong>: download a <code>.tar.gz</code> with the
+    SQLite DB, integrity digests and dedup JSON reports. A
+    <code>PRAGMA wal_checkpoint(TRUNCATE)</code> is forced first so the
+    archived DB file is self-contained.</li>
+  <li><strong>Restore</strong>: upload a previously produced archive.
+    Replaces DB + digests + dedup directory + trash. An automatic
+    snapshot is taken first.</li>
+  <li><strong>Reset</strong>: wipe the DB and all related files
+    (digests, dedup reports, trash). An automatic snapshot is also
+    taken first.</li>
+</ul>
+<p>
+The last two are <strong>blocked</strong> as long as an integrity or
+dedup scan is <code>pending</code>/<code>running</code>. Schedulers are
+stopped during the operation and restarted afterwards.
+</p>
+</section>
+
+<section id="admin-wal">
+<h3>Concurrency (WAL)</h3>
+<p>
+The SQLite DB is opened with <code>journal_mode=WAL</code>,
+<code>synchronous=NORMAL</code>, <code>busy_timeout=5000</code>. This
+lets UI reads stay snappy while large writes are flushed (duplicate
+groups persistence at the end of a big scan).
+</p>
+<p>
+The <code>bc-vigil.sqlite-wal</code> and <code>bc-vigil.sqlite-shm</code>
+files are created automatically by SQLite — this is normal and expected
+in WAL mode. Backup calls an explicit checkpoint so only the main file
+is archived.
+</p>
+</section>
+
+<section id="storage">
+<h3>Storage module</h3>
+<p>
+The <a href="/storage">Storage</a> tab shows per-mount disk usage:
+total, used, free, filesystem type. Informational only, no impact on
+scans.
+</p>
+</section>
+
+<section id="config">
+<h3>Configuration (environment variables)</h3>
+<table>
+  <thead><tr><th>Variable</th><th>Default</th><th>Purpose</th></tr></thead>
+  <tbody>
+    <tr><td><code>BC_VIGIL_HOST</code></td><td><code>127.0.0.1</code></td><td>listen address</td></tr>
+    <tr><td><code>BC_VIGIL_PORT</code></td><td><code>8080</code></td><td>listen port</td></tr>
+    <tr><td><code>BC_VIGIL_DATA_DIR</code></td><td><code>./var</code> (deb: <code>/var/lib/bc-vigil</code>)</td><td>root dir (DB, digests, dedup, default trash)</td></tr>
+    <tr><td><code>BC_VIGIL_BC_HASH_BINARY</code></td><td><code>bc-hash</code></td><td>integrity binary path</td></tr>
+    <tr><td><code>BC_VIGIL_BC_DUPLICATE_BINARY</code></td><td><code>bc-duplicate</code></td><td>dedup binary path</td></tr>
+    <tr><td><code>BC_VIGIL_DEFAULT_ALGORITHM</code></td><td><code>sha256</code></td><td>default algorithm for new integrity targets</td></tr>
+    <tr><td><code>BC_VIGIL_DEFAULT_THREADS</code></td><td><code>auto</code></td><td>default <em>threads</em> value (before HDD detection)</td></tr>
+    <tr><td><code>BC_VIGIL_MAX_PARALLEL_SCANS</code></td><td><code>2</code></td><td>max concurrent scans (shared integrity + dedup)</td></tr>
+    <tr><td><code>BC_VIGIL_DISPLAY_TZ</code></td><td><code>UTC</code></td><td>display timezone (data stays UTC in DB)</td></tr>
+    <tr><td><code>BC_VIGIL_SCAN_RETENTION_DAYS</code></td><td><code>0</code></td><td>retention of finished scans (days)</td></tr>
+    <tr><td><code>BC_VIGIL_DEDUP_TRASH_DIR</code></td><td>empty</td><td>trash path; empty = <code>&lt;data_dir&gt;/dedup/trash</code></td></tr>
+    <tr><td><code>BC_VIGIL_DEDUP_TRASH_RETENTION_DAYS</code></td><td><code>7</code></td><td>trash retention before automatic purge (days)</td></tr>
+    <tr><td><code>BC_VIGIL_DEDUP_DELETION_BULK_THRESHOLD</code></td><td><code>500</code></td><td>above this, an extra opt-in is required at confirmation</td></tr>
+  </tbody>
+</table>
+<p class="hint">Current display timezone: <code>{{ display_tz() }}</code></p>
+</section>

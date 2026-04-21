@@ -1,0 +1,64 @@
+<section id="faq">
+<h2>FAQ</h2>
+<dl class="faq">
+  <dt>Why does my first integrity scan report no drift?</dt>
+  <dd>Expected: the first scan becomes the baseline, there is nothing
+    to compare against.</dd>
+
+  <dt>Acknowledge vs promote baseline?</dt>
+  <dd><strong>Acknowledge</strong> marks the drift as seen without
+    touching the baseline — a future scan will report the same drift.
+    <strong>Promote</strong> adopts the scan as the new reference and
+    the drift disappears for subsequent scans.</dd>
+
+  <dt>Does acknowledging a dedup scan delete any file?</dt>
+  <dd>No. Acknowledging is only a visual marker that clears the navbar
+    badge. To actually free space you must go through
+    <strong>quarantine</strong> then <strong>purge</strong> (manual or
+    automatic).</dd>
+
+  <dt>Why is <em>threads</em> forced to 1 on my target?</dt>
+  <dd>BitCrafts Vigil detected a rotational disk via
+    <code>/sys/block/&lt;dev&gt;/queue/rotational</code>. On HDD,
+    parallel reads trigger head thrashing and can be 2–10× slower than
+    single-threaded. Tick <em>"Force threads value"</em> at creation
+    to keep your value anyway.</dd>
+
+  <dt>Why was target creation refused on my NFS share?</dt>
+  <dd>Network filesystems (NFS, SMB, SSHFS, 9p, Ceph, AFS, GlusterFS,
+    rclone) cannot guarantee performance. Tick <em>"Accept network
+    filesystem"</em> to bypass the refusal.</dd>
+
+  <dt>I triggered a scan but nothing happens — another scan is active.</dt>
+  <dd>The per-target lock blocks a second simultaneous scan. The
+    redirect link points to the active scan. To free a stuck scan, use
+    <em>Force stop</em> from its detail page.</dd>
+
+  <dt>Can I undo a quarantine?</dt>
+  <dd>Yes, as long as the file has not been purged: click
+    <strong>Restore</strong> in the <a href="/dedup/trash">trash</a>.
+    Restoration fails if another file has since taken the original
+    path.</dd>
+
+  <dt>My trash fills <code>/var/lib</code>, what now?</dt>
+  <dd>Point <code>BC_VIGIL_DEDUP_TRASH_DIR</code> to a larger disk
+    (same FS as the scanned targets ideally, so <code>rename</code>
+    stays atomic).</dd>
+
+  <dt>A scan seems slower via the UI than from the command line.</dt>
+  <dd>The UI adds the JSON report parsing and group persistence. The
+    overhead is proportional to the group count. Since 0.5.0 the
+    persistence is chunked to keep the UI responsive during the final
+    flush.</dd>
+
+  <dt>How do I consume a scan's groups from a script?</dt>
+  <dd><code>GET /dedup/scans/&lt;id&gt;/groups.csv</code> returns a CSV
+    (<code>scan_id,target,group_id,size,path</code>) usable with
+    curl + jq/csvkit.</dd>
+
+  <dt>A schedule is "stuck", what should I do?</dt>
+  <dd>Check that BitCrafts Vigil runs continuously, inspect recent
+    scans of the target to spot failures or stuck scans. Restarting
+    the service re-registers the jobs.</dd>
+</dl>
+</section>
