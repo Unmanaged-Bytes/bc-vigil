@@ -51,11 +51,27 @@ Both share the same app, DB, i18n, sandboxed systemd unit.
 
 - `GET /health` is the canonical readiness probe (JSON, 200 green /
   503 degraded). It covers DB reachability and both scheduler states.
+- `GET /metrics` returns a Prometheus text exposition (no dependency
+  on `prometheus_client`). Exposes `bc_vigil_up`, `bc_vigil_info`,
+  `bc_vigil_db_up`, `bc_vigil_scheduler_up{module}`,
+  `bc_vigil_scans_total{module, status}`,
+  `bc_vigil_dedup_deletions_total{status}`.
 - Monthly `VACUUM` job on SQLite (`0 4 1 * *` local), scheduled from
   `integrity/scheduler.py::_install_vacuum_job`.
 - Stale scan cleanup at startup: `_cleanup_stale_scans` in both
   schedulers marks pending/running scans older than the current
   process start-time as `failed`. An INFO log line reports the count.
+
+## Help pages (1.1.0+)
+
+Help is served as per-topic pages at `/help/<topic>` where topic is
+one of `overview`, `integrity`, `dedup`, `admin`, `faq`. `/help`
+redirects (303) to `/help/overview`. Templates under
+`templates/help/`: `page.html` is the parent with a sticky sidebar,
+and `<topic>_<lang>.html` are fragment templates included based on
+`current_topic` + `current_lang(request)`. Each new topic = one entry
+in `core/routes/help.py::TOPICS` + 2 fragments (fr + en) + an
+`help.topic.<slug>` i18n key.
 
 ## Editing existing targets / schedules (0.5.6+)
 

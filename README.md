@@ -122,6 +122,9 @@ switched via cookie + `/lang/<code>` route. Mirror invariant enforced by
 - `GET /health` returns JSON with service status, DB reachability, and the
   state of both schedulers (integrity + dedup). Returns `200` when green,
   `503` when degraded.
+- `GET /metrics` returns Prometheus text exposition with service/DB/scheduler
+  up gauges, scan counts by module and status, and dedup deletion counts.
+  Scrape interval recommendation: 30s. No `prometheus_client` dependency.
 - On startup, stale scans (pending/running from a previous dead process)
   are auto-marked as failed and an `INFO` log line reports the count.
 - Monthly `VACUUM` job keeps the SQLite DB tight after `scan_retention_days`
