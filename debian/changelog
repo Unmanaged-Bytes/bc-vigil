@@ -1,3 +1,22 @@
+bc-vigil (1.0.0-1) stable; urgency=medium
+
+  * First "complete" release. No new features vs 0.5.7 — only doc,
+    test regression guards, and project metadata housekeeping.
+  * README.md rewritten to cover the dedup module, new environment
+    variables (BC_VIGIL_BC_DUPLICATE_BINARY, BC_VIGIL_DEDUP_*,
+    BC_VIGIL_DISPLAY_TZ auto-detect), and the /health endpoint.
+  * CHANGELOG.md (top-level) consolidated covering highlights of the
+    0.5.x series.
+  * .claude/CLAUDE.md project context updated: new invariants
+    (FR/EN mirror test, cron-in-display-tz, trash-rw contract),
+    observability notes, edit + retry endpoints documentation.
+  * tests/test_ui_regressions.py: regression suite guarding against
+    reintroduction of the UI bugs fixed in 0.5.4 / 0.5.5 (page
+    noire, native time input, nav ambiguity, favicon, timezone
+    cron label).
+
+ -- Younes Benmoussa <younes.benmoussa@pm.me>  Tue, 21 Apr 2026 11:28:21 +0100
+
 bc-vigil (0.5.7-1) stable; urgency=medium
 
   * Health endpoint: GET /health returns JSON
