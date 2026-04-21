@@ -3,6 +3,18 @@
 User-facing highlights per release. See `debian/changelog` for the full
 per-release detail.
 
+## 1.2.1 — 2026-04-21
+
+Help pages refresh.
+
+- Help content refreshed to document features shipped between 0.5.3
+  and 1.2.0 that had not yet made it into user-facing help:
+  integrity & dedup target Edit button (0.5.6), schedule Edit (0.5.6),
+  retry failed dedup deletion (0.5.6), `/health` and `/metrics`
+  endpoints (0.5.7 / 1.2.0), stale scan cleanup at startup (0.5.4),
+  monthly VACUUM (0.5.7), and the `BC_VIGIL_DISPLAY_TZ` auto-detect
+  default (0.5.5). FR + EN.
+
 ## 1.2.0 — 2026-04-21
 
 Prometheus exposition.

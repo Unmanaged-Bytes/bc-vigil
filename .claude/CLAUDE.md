@@ -30,7 +30,7 @@ Both share the same app, DB, i18n, sandboxed systemd unit.
   `/etc/timezone` / `/etc/localtime` at startup, fallback UTC.
 - **SQLite migrations**: nullable `ADD COLUMN` is handled automatically by
   `db._add_missing_columns` on startup. Anything else (drops, renames,
-  NOT NULL with backfill) is a manual task. Alembic is on the roadmap.
+  NOT NULL with backfill) is a manual task.
 - **Dedup trash is write-bounded to `/var/lib/bc-vigil` by default**. To
   dedup paths outside this directory (e.g. `/storage`), a systemd drop-in
   extending `ReadWritePaths` + adding `CAP_DAC_OVERRIDE` is required. See
