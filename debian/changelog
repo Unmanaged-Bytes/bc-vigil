@@ -1,3 +1,15 @@
+bc-vigil (1.2.1-1) stable; urgency=medium
+
+  * Help pages refreshed to document features shipped between 0.5.3
+    and 1.2.0 that had not yet made it into user-facing help:
+    integrity & dedup target Edit button (0.5.6), schedule Edit
+    (0.5.6), retry failed dedup deletion (0.5.6), /health and
+    /metrics endpoints (0.5.7 / 1.2.0), stale scan cleanup at
+    startup (0.5.4), monthly VACUUM (0.5.7), and the new
+    BC_VIGIL_DISPLAY_TZ auto-detect default (0.5.5). FR + EN.
+
+ -- Younes Benmoussa <younes.benmoussa@pm.me>  Tue, 21 Apr 2026 12:55:00 +0100
+
 bc-vigil (1.2.0-1) stable; urgency=medium
 
   * Prometheus /metrics endpoint. Exposes bc_vigil_up (DB + both

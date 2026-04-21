@@ -39,6 +39,9 @@ configurable retention period.
   <li><strong>Options</strong>: include hidden files, follow symlinks,
     treat hardlinks as duplicates, do not cross filesystem boundaries.</li>
 </ul>
+<p>The <strong>Edit</strong> button on the target page lets you change
+all fields above (including the option flags) without losing scan
+history or existing trash entries. The path itself stays immutable.</p>
 </section>
 
 <section id="dedup-disk">
@@ -193,11 +196,18 @@ The <a href="/dedup/trash">Trash</a> page lists all quarantined items with:
   <li><span class="status status-purged">purged</span> — permanently deleted.</li>
   <li><span class="status status-failed">failed</span> — a step failed (audit trail kept).</li>
 </ul>
-<p>Two actions on quarantined items:</p>
+<p>Available actions:</p>
 <ul>
-  <li><strong>Restore</strong>: move the file back. Refused if another
-    file now sits at the original path.</li>
-  <li><strong>Purge</strong>: immediate, irreversible delete.</li>
+  <li>On a <code>quarantined</code> item:
+    <strong>Restore</strong> (move the file back; refused if another
+    file now sits at the original path) or <strong>Purge</strong>
+    (immediate, irreversible delete).</li>
+  <li>On a <code>failed</code> item (typically an <em>EROFS</em> or
+    missing permission at the first move attempt):
+    <strong>Retry deletion</strong> re-runs the move to trash. On
+    success, the <code>failed</code> row is replaced by a fresh
+    <code>quarantined</code> row. On failure the existing row's error
+    message is updated (no duplicate row is created).</li>
 </ul>
 <p>
 An APScheduler job runs every 24h and automatically purges items older

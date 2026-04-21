@@ -18,6 +18,9 @@
 </ul>
 <p>From the target page:</p>
 <ul>
+  <li><strong>Edit</strong>: change the name, algorithm, threads and
+    include/exclude patterns without losing the baseline or the scan
+    history. The path is immutable (a target is defined by its path).</li>
   <li><strong>Duplicate</strong>: clones the target with the
     <em>(copy)</em> suffix.</li>
   <li><strong>Ack all</strong>: acknowledges every unacknowledged drift
@@ -74,7 +77,11 @@ Background triggers (APScheduler, UTC timezone). Six modes:
 </ul>
 <p>
 The preview shows the next 5 runs as you type. A disabled schedule is
-kept in DB but not registered with the scheduler.
+kept in DB but not registered with the scheduler. The <strong>Edit</strong>
+button on the schedule row lets you change the cron expression and the
+enabled flag without dropping the schedule row (the form opens in
+pre-filled cron-expression mode; switch to daily / weekly / monthly
+through the frequency dropdown).
 </p>
 </section>
 

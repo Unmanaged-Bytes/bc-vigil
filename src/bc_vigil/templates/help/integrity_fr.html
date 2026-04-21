@@ -19,6 +19,9 @@
 </ul>
 <p>Depuis la fiche d'une cible :</p>
 <ul>
+  <li><strong>Modifier</strong> : édite le nom, l'algorithme, les threads
+    et les patterns include/exclude sans perdre la baseline ni l'historique
+    des scans. Le chemin est immuable (une cible = un chemin).</li>
   <li><strong>Dupliquer</strong> : crée une copie suffixée <em>(copie)</em>.</li>
   <li><strong>Tout acquitter</strong> : acquitte en un clic toutes les
     dérives non acquittées.</li>
@@ -76,7 +79,11 @@ Six modes :
 <p>
 L'aperçu affiche les 5 prochaines exécutions pendant la saisie. Un
 schedule désactivé reste en base mais n'est pas enregistré auprès du
-scheduler.
+scheduler. Le bouton <strong>Modifier</strong> sur la fiche d'une cible
+permet de changer le cron et l'état <em>enabled</em> sans supprimer le
+schedule (le formulaire s'ouvre en mode expression cron pré-remplie ;
+basculer vers les modes quotidien / hebdo / mensuel depuis la liste de
+fréquence).
 </p>
 </section>
 

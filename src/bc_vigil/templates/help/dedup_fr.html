@@ -42,6 +42,10 @@ puis purgés après une période de rétention configurable.
     liens symboliques, considérer les liens physiques comme doublons,
     ne pas traverser les points de montage.</li>
 </ul>
+<p>Le bouton <strong>Modifier</strong> sur la fiche d'une cible permet
+d'éditer tous les champs ci-dessus (y compris les options) sans perdre
+l'historique des scans ni les entrées déjà en corbeille. Le chemin
+reste immuable.</p>
 </section>
 
 <section id="dedup-disk">
@@ -218,11 +222,19 @@ quarantaine avec leur statut :
   <li><span class="status status-failed">failed</span> — une étape a
     échoué (audit trail conservé).</li>
 </ul>
-<p>Deux actions disponibles sur un élément en quarantaine :</p>
+<p>Actions disponibles :</p>
 <ul>
-  <li><strong>Restaurer</strong> : ramène le fichier à son chemin
-    d'origine. Refusé si un autre fichier a pris la place entre-temps.</li>
-  <li><strong>Purger</strong> : suppression immédiate et irréversible.</li>
+  <li>Sur un élément <code>quarantined</code> :
+    <strong>Restaurer</strong> (ramène le fichier à son chemin d'origine,
+    refusé si un autre fichier a pris la place entre-temps) ou
+    <strong>Purger</strong> (suppression immédiate et irréversible).</li>
+  <li>Sur un élément <code>failed</code> (typiquement un
+    <em>EROFS</em> ou une permission manquante au premier essai) :
+    <strong>Réessayer la suppression</strong> relance le déplacement
+    vers la corbeille. Si la nouvelle tentative réussit, la ligne
+    <code>failed</code> est remplacée par une nouvelle entrée
+    <code>quarantined</code>. Si elle échoue encore, le message d'erreur
+    de la ligne existante est mis à jour (pas de doublon en base).</li>
 </ul>
 <p>
 Un job APScheduler tourne toutes les 24 h et purge automatiquement les

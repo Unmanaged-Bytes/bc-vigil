@@ -40,6 +40,34 @@ explicite pour que l'archive ne contienne que le fichier principal.
 </p>
 </section>
 
+<section id="admin-observability">
+<h3>Observabilité</h3>
+<p>Deux endpoints non authentifiés, pensés pour un monitoring externe
+(Prometheus, healthcheck Docker, curl en cron) :</p>
+<ul>
+  <li><code>GET /health</code> — JSON avec <code>status</code>,
+    <code>version</code>, <code>db</code>, <code>scheduler_integrity</code>,
+    <code>scheduler_dedup</code>. Renvoie <code>200</code> si tout est
+    vert, <code>503</code> si la DB est injoignable ou qu'un scheduler
+    est arrêté.</li>
+  <li><code>GET /metrics</code> — format exposition Prometheus. Expose
+    <code>bc_vigil_up</code>, <code>bc_vigil_info{version}</code>,
+    <code>bc_vigil_db_up</code>,
+    <code>bc_vigil_scheduler_up{module}</code>,
+    <code>bc_vigil_scans_total{module, status}</code>,
+    <code>bc_vigil_dedup_deletions_total{status}</code>. Intervalle de
+    scrape recommandé : 30 s.</li>
+</ul>
+<p>Au démarrage du service, les scans laissés en <code>pending</code>
+ou <code>running</code> par un précédent process tué sont automatiquement
+marqués <code>failed</code> avec le message
+<em>« interrompu par un redémarrage du service »</em>. Une ligne
+<code>INFO</code> dans les logs indique le nombre de scans nettoyés.
+Un job de <code>VACUUM</code> SQLite tourne le 1<sup>er</sup> de chaque
+mois à 04:00 (fuseau local) pour récupérer l'espace après les purges
+de rétention.</p>
+</section>
+
 <section id="storage">
 <h3>Stockage (module)</h3>
 <p>
@@ -62,7 +90,7 @@ purement informatif, aucun impact sur les scans.
     <tr><td><code>BC_VIGIL_DEFAULT_ALGORITHM</code></td><td><code>sha256</code></td><td>algorithme par défaut pour les nouvelles cibles intégrité</td></tr>
     <tr><td><code>BC_VIGIL_DEFAULT_THREADS</code></td><td><code>auto</code></td><td>valeur <em>threads</em> par défaut (avant détection HDD)</td></tr>
     <tr><td><code>BC_VIGIL_MAX_PARALLEL_SCANS</code></td><td><code>2</code></td><td>scans concurrents maxi (partagé intégrité + doublons)</td></tr>
-    <tr><td><code>BC_VIGIL_DISPLAY_TZ</code></td><td><code>UTC</code></td><td>fuseau d'affichage (les données restent UTC en base)</td></tr>
+    <tr><td><code>BC_VIGIL_DISPLAY_TZ</code></td><td>auto-détecté</td><td>fuseau d'affichage <strong>et d'évaluation des schedules cron</strong>. Par défaut : <code>$TZ</code>, puis <code>/etc/timezone</code>, puis cible du symlink <code>/etc/localtime</code>, sinon <code>UTC</code>. Les timestamps en base restent UTC.</td></tr>
     <tr><td><code>BC_VIGIL_SCAN_RETENTION_DAYS</code></td><td><code>0</code></td><td>rétention des scans intégrité et doublons terminés (jours)</td></tr>
     <tr><td><code>BC_VIGIL_DEDUP_TRASH_DIR</code></td><td>vide</td><td>chemin de la corbeille ; vide = <code>&lt;data_dir&gt;/dedup/trash</code></td></tr>
     <tr><td><code>BC_VIGIL_DEDUP_TRASH_RETENTION_DAYS</code></td><td><code>7</code></td><td>rétention de la corbeille avant purge automatique (jours)</td></tr>

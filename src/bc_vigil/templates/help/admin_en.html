@@ -38,6 +38,32 @@ is archived.
 </p>
 </section>
 
+<section id="admin-observability">
+<h3>Observability</h3>
+<p>Two unauthenticated endpoints, designed for external monitoring
+(Prometheus, Docker healthcheck, curl in cron):</p>
+<ul>
+  <li><code>GET /health</code> — JSON with <code>status</code>,
+    <code>version</code>, <code>db</code>, <code>scheduler_integrity</code>,
+    <code>scheduler_dedup</code>. Returns <code>200</code> when everything
+    is green, <code>503</code> when the DB is unreachable or a scheduler
+    is stopped.</li>
+  <li><code>GET /metrics</code> — Prometheus text exposition. Exposes
+    <code>bc_vigil_up</code>, <code>bc_vigil_info{version}</code>,
+    <code>bc_vigil_db_up</code>,
+    <code>bc_vigil_scheduler_up{module}</code>,
+    <code>bc_vigil_scans_total{module, status}</code>,
+    <code>bc_vigil_dedup_deletions_total{status}</code>. Recommended scrape
+    interval: 30s.</li>
+</ul>
+<p>On service startup, scans left in <code>pending</code> or
+<code>running</code> by a previous dead process are auto-marked
+<code>failed</code> with the message <em>"interrupted by service
+restart"</em>. An <code>INFO</code> log line reports the cleaned count.
+A SQLite <code>VACUUM</code> job runs on the 1st of each month at 04:00
+(local timezone) to reclaim space after retention purges.</p>
+</section>
+
 <section id="storage">
 <h3>Storage module</h3>
 <p>
@@ -60,7 +86,7 @@ scans.
     <tr><td><code>BC_VIGIL_DEFAULT_ALGORITHM</code></td><td><code>sha256</code></td><td>default algorithm for new integrity targets</td></tr>
     <tr><td><code>BC_VIGIL_DEFAULT_THREADS</code></td><td><code>auto</code></td><td>default <em>threads</em> value (before HDD detection)</td></tr>
     <tr><td><code>BC_VIGIL_MAX_PARALLEL_SCANS</code></td><td><code>2</code></td><td>max concurrent scans (shared integrity + dedup)</td></tr>
-    <tr><td><code>BC_VIGIL_DISPLAY_TZ</code></td><td><code>UTC</code></td><td>display timezone (data stays UTC in DB)</td></tr>
+    <tr><td><code>BC_VIGIL_DISPLAY_TZ</code></td><td>auto-detected</td><td>display timezone <strong>and cron schedule evaluation zone</strong>. Default chain: <code>$TZ</code>, then <code>/etc/timezone</code>, then <code>/etc/localtime</code> symlink target, else <code>UTC</code>. DB timestamps stay UTC.</td></tr>
     <tr><td><code>BC_VIGIL_SCAN_RETENTION_DAYS</code></td><td><code>0</code></td><td>retention of finished scans (days)</td></tr>
     <tr><td><code>BC_VIGIL_DEDUP_TRASH_DIR</code></td><td>empty</td><td>trash path; empty = <code>&lt;data_dir&gt;/dedup/trash</code></td></tr>
     <tr><td><code>BC_VIGIL_DEDUP_TRASH_RETENTION_DAYS</code></td><td><code>7</code></td><td>trash retention before automatic purge (days)</td></tr>
