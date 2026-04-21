@@ -935,3 +935,55 @@ def test_run_module_as_script(monkeypatch):
     monkeypatch.setattr(m, "uvicorn", FakeUvicorn)
     m.main()
     assert "host" in calls
+
+
+def test_display_tz_falls_back_to_utc_on_invalid_name(monkeypatch):
+    from bc_vigil.config import settings
+    from bc_vigil.integrity import cron_builder as integ_cb
+    from bc_vigil.dedup import cron_builder as dedup_cb
+
+    monkeypatch.setattr(settings, "display_tz", "Not/A/Real/Zone")
+    assert integ_cb.display_tz().key == "UTC"
+    assert dedup_cb.display_tz().key == "UTC"
+
+
+def test_cleanup_stale_scans_marks_pre_process_scans_as_failed(tmp_path, monkeypatch):
+    from datetime import datetime, timedelta, timezone
+    from bc_vigil.config import settings
+    from bc_vigil.db import SessionLocal, init_db
+    from bc_vigil import models
+    from bc_vigil.integrity import scheduler as integ_sched
+    from bc_vigil.dedup import scheduler as dedup_sched
+
+    monkeypatch.setattr(settings, "data_dir", tmp_path)
+    init_db()
+
+    old_ts = datetime.now(timezone.utc) - timedelta(days=1)
+
+    with SessionLocal() as session:
+        target = models.Target(name="t1", path=str(tmp_path), algorithm="sha256")
+        session.add(target)
+        session.flush()
+        stale = models.Scan(
+            target_id=target.id, status=models.SCAN_RUNNING,
+            trigger="manual", started_at=old_ts,
+        )
+        session.add(stale)
+        dtarget = models.DedupTarget(name="dt1", path=str(tmp_path), algorithm="xxh3")
+        session.add(dtarget)
+        session.flush()
+        dstale = models.DedupScan(
+            target_id=dtarget.id, status=models.DEDUP_RUNNING,
+            trigger="manual", started_at=old_ts,
+        )
+        session.add(dstale)
+        session.commit()
+        scan_id = stale.id
+        dscan_id = dstale.id
+
+    assert integ_sched._cleanup_stale_scans() == 1
+    assert dedup_sched._cleanup_stale_scans() == 1
+
+    with SessionLocal() as session:
+        assert session.get(models.Scan, scan_id).status == models.SCAN_FAILED
+        assert session.get(models.DedupScan, dscan_id).status == models.DEDUP_FAILED

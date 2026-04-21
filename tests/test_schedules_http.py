@@ -147,7 +147,10 @@ def test_preview_endpoint(tmp_path, monkeypatch):
         assert r.text.count("<li>") == 5
 
 
-def test_schedule_form_has_no_conflicting_hidden_time_input(tmp_path, monkeypatch):
+def test_schedule_form_uses_24h_time_picker(tmp_path, monkeypatch):
+    # Custom time-picker macro (pair of <select> + hidden input) instead of
+    # <input type="time">, which would otherwise display AM/PM in en-US
+    # browser locales.
     _setup(tmp_path, monkeypatch)
     target_id = _make_target(tmp_path)
 
@@ -157,7 +160,11 @@ def test_schedule_form_has_no_conflicting_hidden_time_input(tmp_path, monkeypatc
     with TestClient(create_app()) as client:
         r = client.get(f"/schedules/new?target_id={target_id}")
         assert r.status_code == 200
-        assert '<input type="hidden" name="time"' not in r.text
+        assert '<input type="time"' not in r.text
+        assert 'data-time-picker' in r.text
+        assert 'data-time-hour' in r.text
+        assert 'data-time-minute' in r.text
+        assert '<input type="hidden" name="time"' in r.text
 
 
 def test_preview_invalid_weekly_shows_error(tmp_path, monkeypatch):

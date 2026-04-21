@@ -1,3 +1,30 @@
+bc-vigil (0.5.4-1) stable; urgency=medium
+
+  * Timezone: cron schedules are now evaluated and labelled in
+    BC_VIGIL_DISPLAY_TZ rather than hard-coded UTC. Fixes the +1h
+    offset between the time typed in the schedule form and the
+    preview of next occurrences when display_tz is non-UTC.
+    APScheduler and next_occurrences both honour the configured
+    zone; invalid zone names fall back to UTC.
+  * Schedule form: replaced <input type="time"> with a dedicated
+    24h time picker (paired hour/minute <select> + hidden input).
+    Guarantees 24h display regardless of browser locale (en-US
+    browsers previously rendered AM/PM).
+  * Stale scans cleanup: on service startup, scans left in
+    pending/running by a previous (now-dead) bc-vigil process are
+    auto-marked as failed with error "interrompu par un
+    redémarrage du service". Only scans whose started_at precedes
+    the current process start time are touched — in-flight scans
+    of the running process are untouched.
+  * Confirm labels (admin restore, admin reset, dedup delete):
+    reworded from "Confirmation (taper <code>X</code>)" /
+    "Confirm (type <code>X</code>)" to "Taper <code>X</code> pour
+    confirmer" / "Type <code>X</code> to confirm" to avoid the
+    awkward line-wrap around parentheses and <code> at narrow
+    widths.
+
+ -- Younes Benmoussa <younes.benmoussa@pm.me>  Tue, 21 Apr 2026 10:51:13 +0100
+
 bc-vigil (0.5.3-1) stable; urgency=medium
 
   * Dedup: treat missing bc-duplicate JSON output as a successful empty

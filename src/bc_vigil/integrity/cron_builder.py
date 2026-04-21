@@ -1,9 +1,20 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from croniter import croniter
+
+from bc_vigil.config import settings
+
+
+def display_tz() -> ZoneInfo:
+    try:
+        return ZoneInfo(settings.display_tz)
+    except ZoneInfoNotFoundError:
+        return ZoneInfo("UTC")
+
 
 MODES = ("every_minutes", "hourly", "daily", "weekly", "monthly", "cron")
 
@@ -36,6 +47,8 @@ def build_cron(
     if mode not in MODES:
         return BuildResult(None, f"mode inconnu: {mode!r}")
 
+    tz_name = display_tz().key
+
     if mode == "every_minutes":
         n = _parse_int(interval_minutes, 1, 59, "intervalle minutes")
         if isinstance(n, str):
@@ -54,7 +67,8 @@ def build_cron(
         if isinstance(hh, str):
             return BuildResult(None, hh)
         return BuildResult(
-            f"{mm} {hh} * * *", None, f"Tous les jours à {hh:02d}:{mm:02d} UTC",
+            f"{mm} {hh} * * *", None,
+            f"Tous les jours à {hh:02d}:{mm:02d} {tz_name}",
         )
 
     if mode == "weekly":
@@ -78,7 +92,7 @@ def build_cron(
         labels = ", ".join(_DAY_LABELS_FR[d] for d in days if d in _DAY_LABELS_FR)
         return BuildResult(
             f"{mm} {hh} * * {day_field}", None,
-            f"Chaque semaine ({labels}) à {hh:02d}:{mm:02d} UTC",
+            f"Chaque semaine ({labels}) à {hh:02d}:{mm:02d} {tz_name}",
         )
 
     if mode == "monthly":
@@ -90,7 +104,7 @@ def build_cron(
             return BuildResult(None, dom)
         return BuildResult(
             f"{mm} {hh} {dom} * *", None,
-            f"Chaque mois le {dom} à {hh:02d}:{mm:02d} UTC",
+            f"Chaque mois le {dom} à {hh:02d}:{mm:02d} {tz_name}",
         )
 
     raw = (cron_expr or "").strip()
@@ -102,7 +116,7 @@ def build_cron(
 
 
 def next_occurrences(cron: str, count: int = 5) -> list[datetime]:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(display_tz())
     it = croniter(cron, now)
     return [it.get_next(datetime) for _ in range(count)]
 

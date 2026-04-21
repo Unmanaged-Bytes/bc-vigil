@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_macros.html" import time_picker %}
 {% block title %}{{ t(request, "schedules.new") }} — {{ t(request, "app.title") }}{% endblock %}
 {% block content %}
 <h1>{{ t(request, "schedules.new") }} — {{ target.name }}</h1>
@@ -37,13 +38,13 @@
 
   <div data-mode-panel="daily" hidden>
     <label>{{ t(request, "schedules.form.time") }}
-      <input type="time" name="time" value="{{ state.time }}">
+      {{ time_picker(state.time) }}
     </label>
   </div>
 
   <div data-mode-panel="weekly" hidden>
     <label>{{ t(request, "schedules.form.time") }}
-      <input type="time" name="time" value="{{ state.time }}">
+      {{ time_picker(state.time) }}
     </label>
     <fieldset class="days">
       <legend>{{ t(request, "schedules.form.days") }}</legend>
@@ -63,7 +64,7 @@
 
   <div data-mode-panel="monthly" hidden>
     <label>{{ t(request, "schedules.form.time") }}
-      <input type="time" name="time" value="{{ state.time }}">
+      {{ time_picker(state.time) }}
     </label>
     <label>{{ t(request, "schedules.form.day_of_month") }}
       <input type="number" name="day_of_month" min="1" max="31" value="{{ state.day_of_month }}">
@@ -111,6 +112,23 @@
 
   select.addEventListener('change', syncPanels);
   syncPanels();
+
+  form.querySelectorAll('[data-time-picker]').forEach(picker => {
+    const hh = picker.querySelector('[data-time-hour]');
+    const mm = picker.querySelector('[data-time-minute]');
+    const hidden = picker.querySelector('[data-time-hidden]');
+    const [ih, im] = (hidden.value || '00:00').split(':');
+    const imSnap = Math.round((parseInt(im, 10) || 0) / 5) * 5 % 60;
+    hh.value = (ih || '00').padStart(2, '0');
+    mm.value = String(imSnap).padStart(2, '0');
+    function sync() {
+      hidden.value = `${hh.value}:${mm.value}`;
+      hidden.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    hh.addEventListener('change', sync);
+    mm.addEventListener('change', sync);
+    sync();
+  });
 
   form.dispatchEvent(new Event('change', { bubbles: true }));
 })();

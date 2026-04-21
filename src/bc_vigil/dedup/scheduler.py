@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import logging
+import os
 
 from datetime import datetime, timedelta, timezone
 
+import psutil
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
@@ -14,6 +16,7 @@ from bc_vigil import models
 from bc_vigil.config import settings
 from bc_vigil.db import SessionLocal, session_scope
 from bc_vigil.dedup import quarantine, scans
+from bc_vigil.dedup.cron_builder import display_tz
 
 
 PURGE_JOB_ID = "bc-vigil-dedup-purge"
@@ -72,12 +75,36 @@ def start() -> BackgroundScheduler:
     global _scheduler
     if _scheduler is not None:
         return _scheduler
-    _scheduler = BackgroundScheduler(timezone="UTC")
+    _cleanup_stale_scans()
+    _scheduler = BackgroundScheduler(timezone=display_tz())
     _scheduler.start()
     _reload_jobs()
     _install_purge_job()
     _install_trash_purge_job()
     return _scheduler
+
+
+def _cleanup_stale_scans() -> int:
+    """Mark dedup scans left in pending/running by a previous service death
+    as failed, so the UI does not show them as perpetually in-progress.
+    Only scans older than the current process start time are considered
+    stale — scans initiated by this process are left untouched."""
+    proc_start = datetime.fromtimestamp(
+        psutil.Process(os.getpid()).create_time(), tz=timezone.utc,
+    )
+    with session_scope() as session:
+        stale = session.query(models.DedupScan).filter(
+            models.DedupScan.status.in_(
+                [models.DEDUP_PENDING, models.DEDUP_RUNNING]
+            ),
+            models.DedupScan.started_at < proc_start,
+        ).all()
+        now = datetime.now(timezone.utc)
+        for scan in stale:
+            scan.status = models.DEDUP_FAILED
+            scan.finished_at = now
+            scan.error = "interrompu par un redémarrage du service"
+        return len(stale)
 
 
 def _install_purge_job() -> None:
@@ -167,7 +194,7 @@ def _reload_jobs() -> None:
 def _upsert_job(schedule: models.DedupSchedule) -> None:
     scheduler().add_job(
         _run_scheduled_scan,
-        trigger=CronTrigger.from_crontab(schedule.cron, timezone="UTC"),
+        trigger=CronTrigger.from_crontab(schedule.cron, timezone=display_tz()),
         args=[schedule.id],
         id=_job_id(schedule.id),
         replace_existing=True,
