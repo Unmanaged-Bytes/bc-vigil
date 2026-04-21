@@ -1072,3 +1072,104 @@ def test_cleanup_stale_scans_logs_count_at_startup(tmp_path, monkeypatch, caplog
     dedup_sched.shutdown()
     assert any("stale integrity scan" in m for m in caplog.messages)
     assert any("stale dedup scan" in m for m in caplog.messages)
+
+
+def test_health_endpoint_reports_ok(tmp_path, monkeypatch):
+    monkeypatch.setenv("BC_VIGIL_DATA_DIR", str(tmp_path / "var"))
+    from bc_vigil.config import settings
+    settings.data_dir = tmp_path / "var"
+    from bc_vigil.db import init_db
+    init_db()
+    from bc_vigil.app import create_app
+    from fastapi.testclient import TestClient
+    with TestClient(create_app()) as client:
+        r = client.get("/health")
+        assert r.status_code == 200
+        body = r.json()
+        assert body["status"] == "ok"
+        assert body["db"] == "ok"
+        assert body["scheduler_integrity"] == "running"
+        assert body["scheduler_dedup"] == "running"
+        assert body["version"]
+
+
+def test_health_endpoint_degraded_when_db_broken(tmp_path, monkeypatch):
+    monkeypatch.setenv("BC_VIGIL_DATA_DIR", str(tmp_path / "var"))
+    from bc_vigil.config import settings
+    settings.data_dir = tmp_path / "var"
+    from bc_vigil.db import init_db
+    init_db()
+    from bc_vigil.app import create_app
+    from fastapi.testclient import TestClient
+    with TestClient(create_app()) as client:
+        from bc_vigil import db as dbmod
+
+        class BadSession:
+            def __enter__(self):
+                raise RuntimeError("simulated DB outage")
+
+            def __exit__(self, *a):
+                return False
+
+        monkeypatch.setattr(dbmod, "SessionLocal", lambda: BadSession())
+        r = client.get("/health")
+        assert r.status_code == 503
+        assert r.json()["db"] == "down"
+
+
+def test_vacuum_job_runs_without_error(tmp_path, monkeypatch):
+    monkeypatch.setenv("BC_VIGIL_DATA_DIR", str(tmp_path / "var"))
+    from bc_vigil.config import settings
+    settings.data_dir = tmp_path / "var"
+    from bc_vigil.db import init_db
+    init_db()
+    from bc_vigil.integrity import scheduler
+    scheduler.vacuum_db()
+
+
+def test_vacuum_job_logs_exception_on_failure(tmp_path, monkeypatch, caplog):
+    import logging
+    monkeypatch.setenv("BC_VIGIL_DATA_DIR", str(tmp_path / "var"))
+    from bc_vigil.config import settings
+    settings.data_dir = tmp_path / "var"
+    from bc_vigil.db import init_db
+    init_db()
+    from bc_vigil.integrity import scheduler
+    from bc_vigil import db as dbmod
+
+    class BrokenSession:
+        def __enter__(self):
+            raise RuntimeError("simulated I/O")
+
+        def __exit__(self, *a):
+            return False
+
+    monkeypatch.setattr(dbmod, "SessionLocal", lambda: BrokenSession())
+    monkeypatch.setattr(scheduler, "SessionLocal", lambda: BrokenSession())
+    with caplog.at_level(logging.ERROR):
+        scheduler.vacuum_db()
+    assert any("VACUUM" in m for m in caplog.messages)
+
+
+def test_health_endpoint_handles_missing_package_metadata(tmp_path, monkeypatch):
+    monkeypatch.setenv("BC_VIGIL_DATA_DIR", str(tmp_path / "var"))
+    from bc_vigil.config import settings
+    settings.data_dir = tmp_path / "var"
+    from bc_vigil.db import init_db
+    init_db()
+    from importlib import metadata as importlib_metadata
+
+    original = importlib_metadata.version
+
+    def fake_version(pkg: str) -> str:
+        raise importlib_metadata.PackageNotFoundError(pkg)
+
+    monkeypatch.setattr(importlib_metadata, "version", fake_version)
+    from bc_vigil.app import create_app
+    from fastapi.testclient import TestClient
+    with TestClient(create_app()) as client:
+        r = client.get("/health")
+        assert r.status_code == 200
+        assert r.json()["version"] == "unknown"
+
+    monkeypatch.setattr(importlib_metadata, "version", original)

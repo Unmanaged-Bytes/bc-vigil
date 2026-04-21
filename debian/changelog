@@ -1,3 +1,19 @@
+bc-vigil (0.5.7-1) stable; urgency=medium
+
+  * Health endpoint: GET /health returns JSON
+    {status, version, db, scheduler_integrity, scheduler_dedup}.
+    200 if everything is green, 503 if the DB is unreachable or a
+    scheduler is stopped. Version read from importlib.metadata
+    (fallback "unknown" when running from source).
+  * SQLite VACUUM: new monthly job (1st of each month, 04:00 local)
+    runs VACUUM on the bc-vigil DB to reclaim space after
+    scan_retention_days purges. Logs success / failure.
+  * i18n mirror invariant: tests/test_i18n_mirror.py enforces that
+    FR and EN translation dicts share the exact same set of keys.
+    Fails CI on missed entries when relabelling or adding a module.
+
+ -- Younes Benmoussa <younes.benmoussa@pm.me>  Tue, 21 Apr 2026 11:28:21 +0100
+
 bc-vigil (0.5.6-1) stable; urgency=medium
 
   * Edit integrity targets: GET /targets/{id}/edit + POST

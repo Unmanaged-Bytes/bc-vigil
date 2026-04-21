@@ -21,6 +21,7 @@ from bc_vigil.integrity.cron_builder import display_tz
 
 
 PURGE_JOB_ID = "bc-vigil-purge"
+VACUUM_JOB_ID = "bc-vigil-vacuum"
 
 log = logging.getLogger(__name__)
 
@@ -76,7 +77,30 @@ def start() -> BackgroundScheduler:
     _scheduler.start()
     _reload_jobs()
     _install_purge_job()
+    _install_vacuum_job()
     return _scheduler
+
+
+def _install_vacuum_job() -> None:
+    scheduler().add_job(
+        vacuum_db,
+        trigger=CronTrigger.from_crontab("0 4 1 * *", timezone=display_tz()),
+        id=VACUUM_JOB_ID,
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+
+
+def vacuum_db() -> None:
+    from sqlalchemy import text
+    try:
+        with SessionLocal() as session:
+            session.execute(text("VACUUM"))
+            session.commit()
+        log.info("sqlite VACUUM completed")
+    except Exception:
+        log.exception("sqlite VACUUM failed")
 
 
 def _cleanup_stale_scans() -> int:

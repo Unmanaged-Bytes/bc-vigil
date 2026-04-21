@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import logging
 from contextlib import asynccontextmanager
-from importlib import resources
+from importlib import metadata, resources
 from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -154,6 +155,36 @@ def create_app() -> FastAPI:
     static_dir = _package_path("static")
     if static_dir.exists():
         app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+
+    @app.get("/health", include_in_schema=False)
+    def health() -> JSONResponse:
+        from sqlalchemy import text
+        from bc_vigil.db import SessionLocal
+
+        try:
+            version = metadata.version("bc-vigil")
+        except metadata.PackageNotFoundError:
+            version = "unknown"
+        db_ok = True
+        try:
+            with SessionLocal() as session:
+                session.execute(text("select 1")).scalar()
+        except Exception:
+            db_ok = False
+        sched_integ = scheduler._scheduler is not None and scheduler._scheduler.running
+        sched_dedup = (
+            dedup_scheduler._scheduler is not None
+            and dedup_scheduler._scheduler.running
+        )
+        ok = db_ok and sched_integ and sched_dedup
+        payload = {
+            "status": "ok" if ok else "degraded",
+            "version": version,
+            "db": "ok" if db_ok else "down",
+            "scheduler_integrity": "running" if sched_integ else "stopped",
+            "scheduler_dedup": "running" if sched_dedup else "stopped",
+        }
+        return JSONResponse(payload, status_code=200 if ok else 503)
 
     app.include_router(dashboard.router)
     app.include_router(targets_routes.router)
