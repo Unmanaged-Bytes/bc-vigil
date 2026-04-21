@@ -1173,3 +1173,114 @@ def test_health_endpoint_handles_missing_package_metadata(tmp_path, monkeypatch)
         assert r.json()["version"] == "unknown"
 
     monkeypatch.setattr(importlib_metadata, "version", original)
+
+
+def test_metrics_endpoint_returns_prometheus_exposition(tmp_path, monkeypatch):
+    monkeypatch.setenv("BC_VIGIL_DATA_DIR", str(tmp_path / "var"))
+    from bc_vigil.config import settings
+    settings.data_dir = tmp_path / "var"
+    from bc_vigil.db import init_db
+    init_db()
+    from bc_vigil.app import create_app
+    from fastapi.testclient import TestClient
+    with TestClient(create_app()) as client:
+        r = client.get("/metrics")
+        assert r.status_code == 200
+        assert "text/plain" in r.headers["content-type"]
+        body = r.text
+        assert "bc_vigil_up 1" in body
+        assert "bc_vigil_db_up 1" in body
+        assert 'bc_vigil_scheduler_up{module="integrity"} 1' in body
+        assert 'bc_vigil_scheduler_up{module="dedup"} 1' in body
+        assert "bc_vigil_info" in body
+
+
+def test_metrics_endpoint_handles_db_error(tmp_path, monkeypatch):
+    monkeypatch.setenv("BC_VIGIL_DATA_DIR", str(tmp_path / "var"))
+    from bc_vigil.config import settings
+    settings.data_dir = tmp_path / "var"
+    from bc_vigil.db import init_db
+    init_db()
+    from bc_vigil.app import create_app
+    from fastapi.testclient import TestClient
+    with TestClient(create_app()) as client:
+        from bc_vigil import db as dbmod
+
+        class BadSession:
+            def __enter__(self):
+                raise RuntimeError("simulated DB outage")
+
+            def __exit__(self, *a):
+                return False
+
+        monkeypatch.setattr(dbmod, "SessionLocal", lambda: BadSession())
+        r = client.get("/metrics")
+        assert r.status_code == 200
+        assert "bc_vigil_db_up 0" in r.text
+        assert "bc_vigil_up 0" in r.text
+
+
+def test_metrics_endpoint_handles_missing_package_metadata(tmp_path, monkeypatch):
+    monkeypatch.setenv("BC_VIGIL_DATA_DIR", str(tmp_path / "var"))
+    from bc_vigil.config import settings
+    settings.data_dir = tmp_path / "var"
+    from bc_vigil.db import init_db
+    init_db()
+    from importlib import metadata as importlib_metadata
+
+    original = importlib_metadata.version
+
+    def fake_version(pkg: str) -> str:
+        raise importlib_metadata.PackageNotFoundError(pkg)
+
+    monkeypatch.setattr(importlib_metadata, "version", fake_version)
+    from bc_vigil.app import create_app
+    from fastapi.testclient import TestClient
+    with TestClient(create_app()) as client:
+        r = client.get("/metrics")
+        assert r.status_code == 200
+        assert 'version="unknown"' in r.text
+    monkeypatch.setattr(importlib_metadata, "version", original)
+
+
+def test_metrics_endpoint_reports_scan_status_counts(tmp_path, monkeypatch):
+    monkeypatch.setenv("BC_VIGIL_DATA_DIR", str(tmp_path / "var"))
+    from datetime import datetime, timezone
+    from bc_vigil.config import settings
+    settings.data_dir = tmp_path / "var"
+    from bc_vigil.db import init_db, SessionLocal
+    init_db()
+    from bc_vigil import models
+    with SessionLocal() as session:
+        target = models.Target(name="m-t", path=str(tmp_path), algorithm="sha256")
+        session.add(target)
+        session.flush()
+        session.add(models.Scan(
+            target_id=target.id, status=models.SCAN_FAILED,
+            trigger="manual", started_at=datetime.now(timezone.utc),
+        ))
+        dtarget = models.DedupTarget(name="m-dt", path=str(tmp_path), algorithm="xxh3")
+        session.add(dtarget)
+        session.flush()
+        dscan = models.DedupScan(
+            target_id=dtarget.id, status=models.DEDUP_DUPLICATES,
+            trigger="manual", started_at=datetime.now(timezone.utc),
+        )
+        session.add(dscan)
+        session.flush()
+        session.add(models.DedupDeletion(
+            scan_id=dscan.id, group_id=1,
+            original_path="/fake/file", trash_path="/trash/file",
+            size=100, hash_algo="sha256", hash_hex="x" * 64,
+            stored_mode=models.STORED_MODE_COPY_UNLINK,
+            status=models.DELETION_QUARANTINED,
+            deleted_at=datetime.now(timezone.utc),
+        ))
+        session.commit()
+    from bc_vigil.app import create_app
+    from fastapi.testclient import TestClient
+    with TestClient(create_app()) as client:
+        body = client.get("/metrics").text
+        assert 'bc_vigil_scans_total{module="integrity",status="failed"} 1' in body
+        assert 'bc_vigil_scans_total{module="dedup",status="duplicates"} 1' in body
+        assert 'bc_vigil_dedup_deletions_total{status="quarantined"} 1' in body

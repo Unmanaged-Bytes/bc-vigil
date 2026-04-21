@@ -6,7 +6,7 @@ from importlib import metadata, resources
 from pathlib import Path
 
 from fastapi import FastAPI
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -185,6 +185,87 @@ def create_app() -> FastAPI:
             "scheduler_dedup": "running" if sched_dedup else "stopped",
         }
         return JSONResponse(payload, status_code=200 if ok else 503)
+
+    @app.get("/metrics", include_in_schema=False, response_class=PlainTextResponse)
+    def metrics() -> PlainTextResponse:
+        from sqlalchemy import func, select, text
+        from bc_vigil.db import SessionLocal
+        from bc_vigil import models
+
+        try:
+            version = metadata.version("bc-vigil")
+        except metadata.PackageNotFoundError:
+            version = "unknown"
+        db_ok = 1
+        integrity_counts: dict[str, int] = {}
+        dedup_counts: dict[str, int] = {}
+        deletion_counts: dict[str, int] = {}
+        try:
+            with SessionLocal() as session:
+                session.execute(text("select 1")).scalar()
+                for row in session.execute(
+                    select(models.Scan.status, func.count()).group_by(
+                        models.Scan.status,
+                    )
+                ).all():
+                    integrity_counts[row[0]] = int(row[1])
+                for row in session.execute(
+                    select(models.DedupScan.status, func.count()).group_by(
+                        models.DedupScan.status,
+                    )
+                ).all():
+                    dedup_counts[row[0]] = int(row[1])
+                for row in session.execute(
+                    select(models.DedupDeletion.status, func.count()).group_by(
+                        models.DedupDeletion.status,
+                    )
+                ).all():
+                    deletion_counts[row[0]] = int(row[1])
+        except Exception:
+            db_ok = 0
+        sched_integ = 1 if (
+            scheduler._scheduler is not None and scheduler._scheduler.running
+        ) else 0
+        sched_dedup = 1 if (
+            dedup_scheduler._scheduler is not None
+            and dedup_scheduler._scheduler.running
+        ) else 0
+        up = 1 if (db_ok and sched_integ and sched_dedup) else 0
+
+        lines: list[str] = []
+        lines.append("# HELP bc_vigil_up 1 if service is fully up (DB + both schedulers), else 0")
+        lines.append("# TYPE bc_vigil_up gauge")
+        lines.append(f"bc_vigil_up {up}")
+        lines.append("# HELP bc_vigil_info Static info about the running service")
+        lines.append("# TYPE bc_vigil_info gauge")
+        lines.append(f'bc_vigil_info{{version="{version}"}} 1')
+        lines.append("# HELP bc_vigil_db_up 1 if the SQLite DB answered a select 1")
+        lines.append("# TYPE bc_vigil_db_up gauge")
+        lines.append(f"bc_vigil_db_up {db_ok}")
+        lines.append("# HELP bc_vigil_scheduler_up 1 if the APScheduler for a module is running")
+        lines.append("# TYPE bc_vigil_scheduler_up gauge")
+        lines.append(f'bc_vigil_scheduler_up{{module="integrity"}} {sched_integ}')
+        lines.append(f'bc_vigil_scheduler_up{{module="dedup"}} {sched_dedup}')
+        lines.append("# HELP bc_vigil_scans_total Number of scans by module and status")
+        lines.append("# TYPE bc_vigil_scans_total gauge")
+        for status, count in integrity_counts.items():
+            lines.append(
+                f'bc_vigil_scans_total{{module="integrity",status="{status}"}} {count}'
+            )
+        for status, count in dedup_counts.items():
+            lines.append(
+                f'bc_vigil_scans_total{{module="dedup",status="{status}"}} {count}'
+            )
+        lines.append("# HELP bc_vigil_dedup_deletions_total Number of dedup deletions by status")
+        lines.append("# TYPE bc_vigil_dedup_deletions_total gauge")
+        for status, count in deletion_counts.items():
+            lines.append(
+                f'bc_vigil_dedup_deletions_total{{status="{status}"}} {count}'
+            )
+        return PlainTextResponse(
+            "\n".join(lines) + "\n",
+            media_type="text/plain; version=0.0.4",
+        )
 
     app.include_router(dashboard.router)
     app.include_router(targets_routes.router)

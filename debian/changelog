@@ -1,3 +1,14 @@
+bc-vigil (1.2.0-1) stable; urgency=medium
+
+  * Prometheus /metrics endpoint. Exposes bc_vigil_up (DB + both
+    schedulers), bc_vigil_info{version=...}, bc_vigil_db_up,
+    bc_vigil_scheduler_up{module=...},
+    bc_vigil_scans_total{module, status},
+    bc_vigil_dedup_deletions_total{status}. No new dependency:
+    the text exposition format is produced manually.
+
+ -- Younes Benmoussa <younes.benmoussa@pm.me>  Tue, 21 Apr 2026 12:10:00 +0100
+
 bc-vigil (1.1.0-1) stable; urgency=medium
 
   * Help pages split into per-topic pages. Instead of a single 600+
