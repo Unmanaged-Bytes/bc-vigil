@@ -3,6 +3,34 @@
 User-facing highlights per release. See `debian/changelog` for the full
 per-release detail.
 
+## 1.2.0 — 2026-04-21
+
+Prometheus exposition.
+
+- New `GET /metrics` endpoint in the Prometheus text exposition format.
+  Exposes `bc_vigil_up`, `bc_vigil_info{version}`, `bc_vigil_db_up`,
+  `bc_vigil_scheduler_up{module}`, `bc_vigil_scans_total{module, status}`,
+  `bc_vigil_dedup_deletions_total{status}`. No new dependency (no
+  `prometheus_client`) — the exposition is produced manually.
+- Intended for scraping every 30s alongside `/health` JSON probes.
+  Tested in production with a scrape from an existing Prometheus +
+  Grafana stack.
+
+## 1.1.0 — 2026-04-21
+
+Help pages split into per-topic pages with a sticky sidebar.
+
+- `/help` redirects (303) to `/help/overview`. Each of the five topics
+  (`overview`, `integrity`, `dedup`, `admin`, `faq`) now has its own
+  URL `/help/<slug>`.
+- New parent template `templates/help/page.html` with a left sticky
+  sidebar nav + `{% include %}` of the selected fragment.
+- 10 fragment templates under `templates/help/<topic>_<lang>.html`
+  (5 topics × 2 languages).
+- i18n: `help.nav.title`, `help.topic.<slug>` added FR + EN.
+- Old monolithic `help_fr.html` / `help_en.html` removed.
+- Audit: no TODO/FIXME/XXX/HACK in `src/`.
+
 ## 1.0.0 — 2026-04-21
 
 First "complete" release. Everything advertised in the feature list
